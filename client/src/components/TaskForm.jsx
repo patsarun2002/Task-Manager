@@ -32,6 +32,11 @@ export default function TaskForm({ onSubmit }) {
           ? { type: "daily", days: [], lastCompleted: null }
           : { type: "weekly", days: recurringDays, lastCompleted: null };
 
+    if (recurring === "weekly" && recurringDays.length === 0) {
+      setErr("กรุณาเลือกอย่างน้อย 1 วัน");
+      return;
+    }
+
     await onSubmit({
       title,
       deadline,
@@ -104,6 +109,7 @@ export default function TaskForm({ onSubmit }) {
 
         {recurring === "weekly" && (
           <div className="day-picker">
+            <span className="day-picker-label">เลือกวัน:</span>
             {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((label, i) => (
               <button
                 key={i}

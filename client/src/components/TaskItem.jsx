@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import SubtaskList from "./SubtaskList";
+import TaskEditForm from "./TaskEditForm";
 
-export default function TaskItem({
+const TaskItem = memo(function TaskItem({
   task,
   onToggle,
   onEdit,
@@ -9,6 +10,7 @@ export default function TaskItem({
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
+  dragListeners,
 }) {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
@@ -26,6 +28,18 @@ export default function TaskItem({
   );
   const [expanded, setExpanded] = useState(false);
   const [editNote, setEditNote] = useState(task.note || "");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    setEditTitle(task.title);
+    setEditDeadline(task.deadline || "");
+    setEditDeadlineTime(task.deadlineTime || "");
+    setEditPriority(task.priority || "medium");
+    setEditCategory(task.category || "");
+    setEditRecurring(task.recurring?.type || "none");
+    setEditRecurringDays(task.recurring?.days || []);
+    setEditNote(task.note || "");
+  }, [task]);
 
   const toggleEditDay = (day) => {
     setEditRecurringDays((prev) =>
@@ -33,12 +47,11 @@ export default function TaskItem({
     );
   };
 
-  const deadlineDateTime = task.deadline
-    ? new Date(`${task.deadline}T${task.deadlineTime || "23:59:59"}`)
-    : null;
-
-  const isOverdue =
-    deadlineDateTime && deadlineDateTime < new Date() && task.status !== "done";
+  const isOverdue = useMemo(() => {
+    if (!task.deadline || task.status === "done") return false;
+    const dt = new Date(`${task.deadline}T${task.deadlineTime || "23:59:59"}`);
+    return dt < new Date();
+  }, [task.deadline, task.deadlineTime, task.status]);
 
   const handleSave = async () => {
     if (!editTitle.trim()) return;
@@ -67,7 +80,9 @@ export default function TaskItem({
         recurring: recurringData,
       });
       setEditing(false);
-    } catch {}
+    } catch (e) {
+      console.error("save failed:", e);
+    }
   };
 
   const handleCancel = () => {
@@ -83,6 +98,9 @@ export default function TaskItem({
 
   return (
     <div className={`task-item ${task.status} ${isOverdue ? "overdue" : ""}`}>
+      <span className="drag-handle" {...dragListeners}>
+        ⠿
+      </span>
       <input
         type="checkbox"
         checked={task.status === "done"}
@@ -90,77 +108,25 @@ export default function TaskItem({
       />
 
       {editing ? (
-        <div className="edit-rows">
-          <div className="edit-row">
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              maxLength={100}
-            />
-            <input
-              type="date"
-              value={editDeadline}
-              onChange={(e) => setEditDeadline(e.target.value)}
-            />
-            <input
-              type="time"
-              value={editDeadlineTime}
-              onChange={(e) => setEditDeadlineTime(e.target.value)}
-              disabled={!editDeadline}
-              className="time-input"
-            />
-            <button onClick={handleSave}>บันทึก</button>
-            <button onClick={handleCancel}>ยกเลิก</button>
-          </div>
-
-          <div className="edit-row-secondary">
-            <select
-              value={editPriority}
-              onChange={(e) => setEditPriority(e.target.value)}
-            >
-              <option value="low">🟢 Low</option>
-              <option value="medium">🟡 Medium</option>
-              <option value="high">🔴 High</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Category..."
-              value={editCategory}
-              onChange={(e) => setEditCategory(e.target.value)}
-              maxLength={50}
-            />
-          </div>
-
-          <div className="edit-row-secondary">
-            <select
-              value={editRecurring}
-              onChange={(e) => {
-                setEditRecurring(e.target.value);
-                setEditRecurringDays([]);
-              }}
-            >
-              <option value="none">🔁 ไม่ซ้ำ</option>
-              <option value="daily">🔁 ทุกวัน</option>
-              <option value="weekly">🔁 ทุกสัปดาห์</option>
-            </select>
-
-            {editRecurring === "weekly" && (
-              <div className="day-picker">
-                {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((label, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`day-btn ${editRecurringDays.includes(i) ? "active" : ""}`}
-                    onClick={() => toggleEditDay(i)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <TaskEditForm
+          editTitle={editTitle}
+          setEditTitle={setEditTitle}
+          editDeadline={editDeadline}
+          setEditDeadline={setEditDeadline}
+          editDeadlineTime={editDeadlineTime}
+          setEditDeadlineTime={setEditDeadlineTime}
+          editPriority={editPriority}
+          setEditPriority={setEditPriority}
+          editCategory={editCategory}
+          setEditCategory={setEditCategory}
+          editRecurring={editRecurring}
+          setEditRecurring={setEditRecurring}
+          editRecurringDays={editRecurringDays}
+          setEditRecurringDays={setEditRecurringDays}
+          onSave={handleSave}
+          onCancel={handleCancel}
+          toggleEditDay={toggleEditDay}
+        />
       ) : (
         <div className="task-info">
           <span className="task-title">{task.title}</span>
@@ -198,6 +164,7 @@ export default function TaskItem({
       {!editing && (
         <div className="task-actions">
           <button
+            title="แสดง subtask"
             onClick={() => {
               setExpanded(!expanded);
               setEditing(false);
@@ -213,15 +180,30 @@ export default function TaskItem({
           >
             แก้ไข
           </button>{" "}
-          <button
-            className="delete-btn"
-            onClick={() => {
-              if (window.confirm(`ลบ "${task.title}" ใช่ไหม?`))
-                onDelete(task.id);
-            }}
-          >
-            ลบ
-          </button>
+          {confirmDelete ? (
+            <>
+              <span className="confirm-label">ยืนยัน?</span>
+              <button
+                className="delete-btn confirm-yes"
+                onClick={() => onDelete(task.id)}
+              >
+                ใช่
+              </button>
+              <button
+                className="confirm-no"
+                onClick={() => setConfirmDelete(false)}
+              >
+                ไม่
+              </button>
+            </>
+          ) : (
+            <button
+              className="delete-btn"
+              onClick={() => setConfirmDelete(true)}
+            >
+              ลบ
+            </button>
+          )}
         </div>
       )}
 
@@ -232,7 +214,9 @@ export default function TaskItem({
             placeholder="เพิ่ม note..."
             value={editNote}
             onChange={(e) => setEditNote(e.target.value)}
-            onBlur={() => onEdit(task.id, { note: editNote })}
+            onBlur={() => {
+              if (editNote !== task.note) onEdit(task.id, { note: editNote });
+            }}
             rows={2}
           />
           <SubtaskList
@@ -245,4 +229,6 @@ export default function TaskItem({
       )}
     </div>
   );
-}
+});
+
+export default TaskItem;

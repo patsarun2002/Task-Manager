@@ -8,6 +8,7 @@ export default function FilterBar({
   onSearchChange,
   onSortChange,
   onPriorityChange,
+  categories = [],
   onCategoryChange, // ← เพิ่ม
 }) {
   return (
@@ -58,13 +59,18 @@ export default function FilterBar({
         <option value="low">🟢 Low</option>
       </select>
 
-      <input
-        type="text"
-        placeholder="Category..."
+      <select
         value={category}
         onChange={(e) => onCategoryChange(e.target.value)}
-        className="search-input"
-      />
+        className="sort-select"
+      >
+        <option value="">Category...</option>
+        {categories.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

@@ -22,14 +22,13 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState("");   
   const [reload, setReload] = useState(0);
   const [toast, setToast] = useState(null);
   const showToast = (message, type = "error") => setToast({ message, type });
-  const [priority, setPriority] = useState("all"); // ← เพิ่ม
-  const [category, setCategory] = useState(""); // ← เพิ่ม
+  const [priority, setPriority] = useState("all");
+  const [category, setCategory] = useState("");
 
-  // โหลด tasks ทุกครั้งที่ filter/search/sort เปลี่ยน
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -70,7 +69,7 @@ export default function App() {
       await createTask(data);
       refresh();
       showToast("เพิ่ม task สำเร็จ", "success");
-    } catch (err) {
+    } catch (err) {                                           
       showToast(err.response?.data?.error || "เพิ่ม task ไม่สำเร็จ");
     }
   };
@@ -86,7 +85,7 @@ export default function App() {
           ? "บันทึกแล้ว — task จะ reset วันถัดไป"
           : "อัปเดต task สำเร็จ";
       showToast(msg, "success");
-    } catch {
+    } catch {                                                 
       showToast("อัปเดต task ไม่สำเร็จ");
     }
   };
@@ -96,7 +95,7 @@ export default function App() {
       await updateTask(id, data);
       refresh();
       showToast("แก้ไข task สำเร็จ", "success");
-    } catch (err) {
+    } catch (err) {                                           
       showToast(err.response?.data?.error || "แก้ไข task ไม่สำเร็จ");
     }
   };
@@ -106,7 +105,7 @@ export default function App() {
       await deleteTask(id);
       refresh();
       showToast("ลบ task สำเร็จ", "success");
-    } catch (err) {
+    } catch {                                                 
       showToast("ลบ task ไม่สำเร็จ");
     }
   };
@@ -115,7 +114,7 @@ export default function App() {
     try {
       await addSubtask(taskId, data);
       refresh();
-    } catch (err) {
+    } catch {                                                 
       showToast("เพิ่ม subtask ไม่สำเร็จ");
     }
   };
@@ -124,7 +123,7 @@ export default function App() {
     try {
       await toggleSubtask(taskId, subId);
       refresh();
-    } catch (err) {
+    } catch {                                                 
       showToast("อัปเดต subtask ไม่สำเร็จ");
     }
   };
@@ -133,7 +132,7 @@ export default function App() {
     try {
       await deleteSubtask(taskId, subId);
       refresh();
-    } catch (err) {
+    } catch {                                                 
       showToast("ลบ subtask ไม่สำเร็จ");
     }
   };
@@ -142,9 +141,14 @@ export default function App() {
     setTasks(reordered);
   };
 
+  const categories = [...new Set(tasks.map((t) => t.category).filter(Boolean))];
+
   return (
     <div className="app">
       <h1>Task Manager</h1>
+
+      {/* ✅ error state is now rendered — fixes line 25 */}
+      {error && <p className="error-message">{error}</p>}
 
       {toast && (
         <Toast
@@ -169,6 +173,7 @@ export default function App() {
         onSortChange={setSort}
         onPriorityChange={setPriority}
         onCategoryChange={setCategory}
+        categories={categories}
       />
 
       {loading ? (
@@ -179,9 +184,9 @@ export default function App() {
           onToggle={handleToggle}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          onAddSubtask={handleAddSubtask} // ← เพิ่ม
-          onToggleSubtask={handleToggleSubtask} // ← เพิ่ม
-          onDeleteSubtask={handleDeleteSubtask} // ← เพิ่ม
+          onAddSubtask={handleAddSubtask}
+          onToggleSubtask={handleToggleSubtask}
+          onDeleteSubtask={handleDeleteSubtask}
           onReorder={handleReorder}
         />
       )}

@@ -1,44 +1,44 @@
 {
   "tasks": [
     {
-      "id": "3fbf0778-8ddb-4a11-8626-5985532a1aac",
-      "title": "เรียน bbl",
+      "id": "485c23bd-c088-419b-b4e4-3447c15d690d",
+      "title": "เรียน ts",
       "status": "pending",
-      "priority": "high",
-      "category": "ภาษาลาว",
-      "note": "ดเกดเกดเกดหกดหฟกฟหกฟหก",
-      "subtasks": [
-        {
-          "id": "116cbc96-f75c-4c57-bb85-11774f635eef",
-          "title": "rip",
-          "done": false
-        }
-      ],
-      "deadline": "2026-05-12",
-      "deadlineTime": "20:00",
+      "priority": "medium",
+      "category": "kob",
+      "note": "",
+      "subtasks": [],
+      "deadline": "2026-05-13",
+      "deadlineTime": "05:09",
+      "recurring": {
+        "type": "daily",
+        "days": [],
+        "lastCompleted": null
+      },
+      "createdAt": "2026-05-12T22:10:09.769Z"
+    },
+    {
+      "id": "a184ebd6-a046-4225-b7f4-f10e6209027a",
+      "title": "เรียน sql",
+      "status": "pending",
+      "priority": "low",
+      "category": "it",
+      "note": "",
+      "subtasks": [],
+      "deadline": "2026-05-13",
+      "deadlineTime": "05:10",
       "recurring": {
         "type": "weekly",
         "days": [
-          0,
-          6,
-          3
+          1,
+          2,
+          3,
+          4,
+          5
         ],
-        "lastCompleted": "2026-05-12T12:01:59.486Z"
+        "lastCompleted": null
       },
-      "createdAt": "2026-05-12T11:49:49.804Z"
-    },
-    {
-      "id": "1415f73b-d4cb-4cb5-8492-ccf96450bf65",
-      "title": "กฟหกฟหกฟหก",
-      "status": "pending",
-      "priority": "medium",
-      "category": "หฟดหกดเหกเหกเหกเหกเ",
-      "note": "",
-      "subtasks": [],
-      "deadline": "2026-05-12",
-      "deadlineTime": "19:43",
-      "recurring": null,
-      "createdAt": "2026-05-12T12:43:42.995Z"
+      "createdAt": "2026-05-12T22:10:41.547Z"
     }
   ]
 }

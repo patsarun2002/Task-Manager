@@ -2,11 +2,14 @@ import { useState } from "react";
 
 export default function SubtaskList({ task, onAdd, onToggle, onDelete }) {
   const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const handleAdd = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || saving) return;
+    setSaving(true);
     await onAdd(task.id, { title: input });
     setInput("");
+    setSaving(false);
   };
 
   const done = task.subtasks.filter((s) => s.done).length;
@@ -56,7 +59,7 @@ export default function SubtaskList({ task, onAdd, onToggle, onDelete }) {
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           maxLength={100}
         />
-        <button onClick={handleAdd}>+ เพิ่ม</button>
+        <button onClick={handleAdd} disabled={saving}>+ เพิ่ม</button>
       </div>
     </div>
   );
