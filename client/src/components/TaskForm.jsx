@@ -1,14 +1,16 @@
 import { useState } from "react";
 
-export default function TaskForm({ onSubmit }) {
+const DAY_LABELS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
+export default function TaskForm({ onSubmit, isLoggedIn, onLoginRequired }) {
   const [title, setTitle] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [err, setErr] = useState("");
-  const [priority, setPriority] = useState("medium"); // ← เพิ่ม
-  const [category, setCategory] = useState(""); // ← เพิ่ม
   const [deadlineTime, setDeadlineTime] = useState("");
-  const [recurring, setRecurring] = useState("none"); // 'none' | 'daily' | 'weekly'
-  const [recurringDays, setRecurringDays] = useState([]); // [0-6]
+  const [priority, setPriority] = useState("medium");
+  const [category, setCategory] = useState("");
+  const [recurring, setRecurring] = useState("none");
+  const [recurringDays, setRecurringDays] = useState([]);
+  const [err, setErr] = useState("");
 
   const toggleDay = (day) => {
     setRecurringDays((prev) =>
@@ -18,12 +20,14 @@ export default function TaskForm({ onSubmit }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErr("");
-
-    if (!title.trim()) {
-      setErr("กรุณากรอกชื่อ task");
+    if (!isLoggedIn) {
+      onLoginRequired();
       return;
     }
+    setErr("");
+    if (!title.trim()) return setErr("กรุณากรอกชื่อ task");
+    if (recurring === "weekly" && recurringDays.length === 0)
+      return setErr("กรุณาเลือกอย่างน้อย 1 วัน");
 
     const recurringData =
       recurring === "none"
@@ -31,11 +35,6 @@ export default function TaskForm({ onSubmit }) {
         : recurring === "daily"
           ? { type: "daily", days: [], lastCompleted: null }
           : { type: "weekly", days: recurringDays, lastCompleted: null };
-
-    if (recurring === "weekly" && recurringDays.length === 0) {
-      setErr("กรุณาเลือกอย่างน้อย 1 วัน");
-      return;
-    }
 
     await onSubmit({
       title,
@@ -45,42 +44,62 @@ export default function TaskForm({ onSubmit }) {
       category,
       recurring: recurringData,
     });
-    setDeadlineTime("");
     setTitle("");
     setDeadline("");
-    setPriority("medium"); // ← เพิ่ม
-    setCategory(""); // ← เพิ่ม
+    setDeadlineTime("");
+    setPriority("medium");
+    setCategory("");
     setRecurring("none");
     setRecurringDays([]);
   };
 
+  const inputCls =
+    "px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500";
+  const selectCls = `${inputCls} cursor-pointer text-zinc-600 dark:text-zinc-300`;
+
   return (
-    <form className="task-form" onSubmit={handleSubmit}>
-      <div className="form-row">
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-4 flex flex-col gap-3 mb-4 shadow-sm"
+    >
+      {/* Row 1: title + date + time + submit */}
+      <div className="flex flex-wrap gap-2 items-center">
         <input
           type="text"
           placeholder="ชื่อ task..."
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={100}
+          className={`${inputCls} flex-1 min-w-[180px] font-medium placeholder:font-normal`}
         />
         <input
           type="date"
           value={deadline}
           onChange={(e) => setDeadline(e.target.value)}
+          className={inputCls}
         />
         <input
           type="time"
           value={deadlineTime}
           onChange={(e) => setDeadlineTime(e.target.value)}
-          disabled={!deadline} // ← กำหนดเวลาได้เมื่อมีวันที่เท่านั้น
-          className="time-input"
+          disabled={!deadline}
+          className={`${inputCls} disabled:opacity-40 disabled:cursor-not-allowed`}
         />
-        <button type="submit">+ เพิ่ม</button>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition shadow-sm shadow-blue-200 whitespace-nowrap"
+        >
+          + เพิ่ม
+        </button>
       </div>
 
-      <div className="form-row-secondary">
-        <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+      {/* Row 2: priority + category */}
+      <div className="flex flex-wrap gap-2">
+        <select
+          value={priority}
+          onChange={(e) => setPriority(e.target.value)}
+          className={selectCls}
+        >
           <option value="low">🟢 Low</option>
           <option value="medium">🟡 Medium</option>
           <option value="high">🔴 High</option>
@@ -91,31 +110,37 @@ export default function TaskForm({ onSubmit }) {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           maxLength={50}
+          className={`${inputCls} flex-1 min-w-[160px]`}
         />
       </div>
 
-      <div className="form-row-secondary">
+      {/* Row 3: recurring */}
+      <div className="flex flex-wrap gap-2 items-center">
         <select
           value={recurring}
           onChange={(e) => {
             setRecurring(e.target.value);
             setRecurringDays([]);
           }}
+          className={selectCls}
         >
           <option value="none">🔁 ไม่ซ้ำ</option>
           <option value="daily">🔁 ทุกวัน</option>
           <option value="weekly">🔁 ทุกสัปดาห์</option>
         </select>
-
         {recurring === "weekly" && (
-          <div className="day-picker">
-            <span className="day-picker-label">เลือกวัน:</span>
-            {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((label, i) => (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-zinc-400">วัน:</span>
+            {DAY_LABELS.map((label, i) => (
               <button
                 key={i}
                 type="button"
-                className={`day-btn ${recurringDays.includes(i) ? "active" : ""}`}
                 onClick={() => toggleDay(i)}
+                className={`w-7 h-7 text-xs rounded-full font-medium transition-all ${
+                  recurringDays.includes(i)
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-600"
+                }`}
               >
                 {label}
               </button>
@@ -124,7 +149,7 @@ export default function TaskForm({ onSubmit }) {
         )}
       </div>
 
-      {err && <p className="form-error">{err}</p>}
+      {err && <p className="text-xs text-red-500">{err}</p>}
     </form>
   );
 }

@@ -1,14 +1,63 @@
 import axios from "axios";
 
-const BASE = "http://localhost:3001/api/tasks";
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL });
+// แนบ token ทุก request อัตโนมัติ
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("accessToken");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-export const getTasks = (params) => axios.get(BASE, { params });
-export const createTask = (data) => axios.post(BASE, data);
-export const updateTask = (id, data) => axios.put(`${BASE}/${id}`, data);
-export const deleteTask = (id) => axios.delete(`${BASE}/${id}`);
+// ถ้า token หมดอายุ → refresh อัตโนมัติ
+api.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const original = err.config;
+    if (err.response?.status === 403 && !original._retry) {
+      original._retry = true;
+      try {
+        const refreshToken = localStorage.getItem("refreshToken");
+        const { data } = await axios.post(
+          `${import.meta.env.VITE_API_URL}/auth/refresh`,
+          { refreshToken },
+        );
+        localStorage.setItem("accessToken", data.accessToken);
+        original.headers.Authorization = `Bearer ${data.accessToken}`;
+        return api(original);
+      } catch {
+        // refresh หมดอายุ → logout
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        window.location.href = "/";
+      }
+    }
+    return Promise.reject(err);
+  },
+);
+
+// ── Auth ──────────────────────────────────────────────
+export const register = (data) => api.post("/auth/register", data);
+export const login = async (data) => {
+  const res = await api.post("/auth/login", data);
+  localStorage.setItem("accessToken", res.data.accessToken);
+  localStorage.setItem("refreshToken", res.data.refreshToken);
+  return res;
+};
+export const logout = async () => {
+  const refreshToken = localStorage.getItem("refreshToken");
+  await api.post("/auth/logout", { refreshToken }).catch(() => {});
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+};
+
+// ── Tasks ─────────────────────────────────────────────
+export const getTasks = (params) => api.get("/tasks", { params });
+export const createTask = (data) => api.post("/tasks", data);
+export const updateTask = (id, data) => api.put(`/tasks/${id}`, data);
+export const deleteTask = (id) => api.delete(`/tasks/${id}`);
 export const addSubtask = (taskId, data) =>
-  axios.post(`${BASE}/${taskId}/subtasks`, data);
+  api.post(`/tasks/${taskId}/subtasks`, data);
 export const toggleSubtask = (taskId, subId) =>
-  axios.patch(`${BASE}/${taskId}/subtasks/${subId}`);
+  api.patch(`/tasks/${taskId}/subtasks/${subId}`);
 export const deleteSubtask = (taskId, subId) =>
-  axios.delete(`${BASE}/${taskId}/subtasks/${subId}`);
+  api.delete(`/tasks/${taskId}/subtasks/${subId}`);

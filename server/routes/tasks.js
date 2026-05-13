@@ -9,12 +9,16 @@ import {
   deleteSubtask,
 } from "../controllers/taskController.js";
 import { validateTask } from "../middleware/validate.js";
+import { verifyToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
+// verifyToken ทุก route — แต่ละคนเห็นแค่ task ตัวเอง
+router.use(verifyToken);
+
 router.get("/", getTasks);
-router.post("/", validateTask, createTask); // ← เพิ่ม validateTask
-router.put("/:id", validateTask, updateTask); // ← เพิ่ม validateTask
+router.post("/", validateTask, createTask);
+router.put("/:id", validateTask, updateTask);
 router.delete("/:id", deleteTask);
 
 router.post("/:id/subtasks", addSubtask);

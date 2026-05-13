@@ -1,23 +1,19 @@
-import db from "../db.js";
-import { v4 as uuidv4 } from "uuid";
+import prisma from "../db.js";
 
 function getNextDeadline(task) {
   const now = new Date();
 
-  if (task.recurring.type === "daily") {
+  if (task.recurringType === "daily") {
     const next = new Date(now);
     next.setDate(next.getDate() + 1);
-    return next.toISOString().split("T")[0]; // "YYYY-MM-DD"
+    return next;
   }
 
-  if (task.recurring.type === "weekly") {
-    const days = task.recurring.days.sort((a, b) => a - b);
+  if (task.recurringType === "weekly") {
+    const days = JSON.parse(task.recurringDays || "[]").sort((a, b) => a - b);
+    if (!days.length) return task.deadline;
     const todayDay = now.getDay();
-
-    // หาวันถัดไปใน days[]
     let nextDay = days.find((d) => d > todayDay);
-
-    // ถ้าไม่มีในสัปดาห์นี้ → วนไปสัปดาห์หน้า
     if (nextDay === undefined) nextDay = days[0];
 
     const diff =
@@ -25,201 +21,300 @@ function getNextDeadline(task) {
 
     const next = new Date(now);
     next.setDate(next.getDate() + diff);
-    return next.toISOString().split("T")[0];
+    return next;
   }
 
   return task.deadline;
 }
 
-// GET /api/tasks — ดึง tasks ทั้งหมด (กรองและเรียงได้)
+// GET /api/tasks
 export const getTasks = async (req, res) => {
-  await db.read();
-  let tasks = [...db.data.tasks];
+  try {
+    const userId = req.user.id;
+    const {
+      status,
+      search,
+      sort,
+      priority,
+      category,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
-  const { status, search, sort, priority, category } = req.query;
+    const where = { userId };
+    if (status && status !== "all") where.status = status;
+    if (priority && priority !== "all") where.priority = priority;
+    if (category && category !== "all") where.category = category;
+    if (search) where.title = { contains: search, mode: "insensitive" };
 
-  // filter by status
-  if (status && status !== "all") {
-    tasks = tasks.filter((t) => t.status === status);
-  }
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+    const skip = (safePage - 1) * safeLimit;
 
-  if (priority && priority !== "all") {
-    tasks = tasks.filter((t) => t.priority === priority);
-  }
+    const [tasks, total] = await Promise.all([
+      prisma.task.findMany({
+        where,
+        include: { subtasks: true },
+        orderBy: sort === "date" ? { deadline: "asc" } : { createdAt: "desc" },
+        skip,
+        take: Number(limit),
+      }),
+      prisma.task.count({ where }),
+    ]);
 
-  if (category && category !== "all") {
-    tasks = tasks.filter((t) => t.category === category);
-  }
-
-  // search by title
-  if (search) {
-    tasks = tasks.filter((t) =>
-      t.title.toLowerCase().includes(search.toLowerCase()),
-    );
-  }
-
-  // sort by deadline
-  if (sort === "date") {
-    tasks = [...tasks].sort((a, b) => {
-      const aStr = a.deadline
-        ? `${a.deadline}T${a.deadlineTime || "23:59"}`
-        : "9999";
-      const bStr = b.deadline
-        ? `${b.deadline}T${b.deadlineTime || "23:59"}`
-        : "9999";
-      return new Date(aStr) - new Date(bStr);
+    res.json({
+      tasks,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / Number(limit)),
     });
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
-
-  res.json(tasks);
 };
 
-// POST /api/tasks — สร้าง task ใหม่
+// POST /api/tasks
 export const createTask = async (req, res) => {
-  const { title, deadline, deadlineTime, priority, category, note, recurring } =
-    req.body;
-  if (!title || title.trim() === "") {
-    return res.status(400).json({ error: "Title is required" });
-  }
+  try {
+    const userId = req.user.id;
+    const {
+      title,
+      deadline,
+      deadlineTime,
+      priority,
+      category,
+      note,
+      recurring,
+    } = req.body;
 
-  const newTask = {
-    id: uuidv4(),
-    title: title.trim(),
-    status: "pending",
-    priority: priority || "medium", // ← เพิ่ม
-    category: category?.trim() || "", // ← เพิ่ม
-    note: note?.trim() || "", // ← เพิ่ม
-    subtasks: [], // ← เพิ่ม array ว่าง
-    deadline: deadline || null,
-    deadlineTime: deadlineTime || null, // ← เพิ่ม
-    recurring: recurring || null,
-    createdAt: new Date().toISOString(),
-  };
-
-  await db.read();
-  db.data.tasks.push(newTask);
-  await db.write();
-
-  res.status(201).json(newTask);
-};
-
-// PUT /api/tasks/:id — แก้ไข task
-export const updateTask = async (req, res) => {
-  const { id } = req.params;
-  const {
-    title,
-    status,
-    deadline,
-    deadlineTime,
-    priority,
-    category,
-    note,
-    subtasks,
-    recurring,
-  } = req.body;
-  await db.read();
-  const task = db.data.tasks.find((t) => t.id === id);
-
-  if (!task) {
-    return res.status(404).json({ error: "Task not found" });
-  }
-
-  if (title !== undefined) task.title = title.trim();
-  if (status !== undefined) {
-    if (status === "done" && task.recurring) {
-      // บันทึกวันที่ทำเสร็จ
-      task.recurring.lastCompleted = new Date().toISOString();
-
-      // คำนวณ deadline ถัดไป
-      task.deadline = getNextDeadline(task);
-
-      // reset กลับ pending อัตโนมัติ
-      task.status = "pending";
-    } else {
-      task.status = status;
+    if (!title?.trim()) {
+      return res.status(400).json({ error: "กรุณากรอกชื่อ task" });
     }
-  }
-  if (deadline !== undefined) task.deadline = deadline;
-  if (deadlineTime !== undefined) task.deadlineTime = deadlineTime;
-  if (priority !== undefined) task.priority = priority; // ← เพิ่ม
-  if (category !== undefined) task.category = category; // ← เพิ่ม
-  if (note !== undefined) task.note = note.trim(); // ← เพิ่ม
-  if (subtasks !== undefined) task.subtasks = subtasks; // ← เพิ่ม
-  if (recurring !== undefined) task.recurring = recurring;
 
-  await db.write();
-  res.json(task);
+    const task = await prisma.task.create({
+      data: {
+        title: title.trim(),
+        status: "pending",
+        priority: priority || "medium",
+        category: category?.trim() || "",
+        note: note?.trim() || "",
+        deadline: deadline ? new Date(deadline) : null,
+        deadlineTime: deadlineTime || null,
+        recurringType: recurring?.type || null,
+        recurringDays: recurring?.days ? JSON.stringify(recurring.days) : null,
+        userId,
+      },
+      include: { subtasks: true },
+    });
+
+    res.status(201).json(task);
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
+  }
 };
 
-// DELETE /api/tasks/:id — ลบ task
+// PUT /api/tasks/:id
+export const updateTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const existing = await prisma.task.findFirst({
+      where: { id: Number(id), userId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "ไม่พบ task" });
+    }
+
+    const {
+      title,
+      status,
+      deadline,
+      deadlineTime,
+      priority,
+      category,
+      note,
+      recurring,
+    } = req.body;
+
+    const updateData = {};
+
+    if (title !== undefined) {
+      const trimmed = title.trim();
+      if (!trimmed)
+        return res.status(400).json({ error: "ชื่อ task ต้องไม่ว่าง" });
+      updateData.title = trimmed;
+    }
+    if (deadline !== undefined) {
+      updateData.deadline = deadline ? new Date(deadline) : null;
+    }
+    if (deadlineTime !== undefined) updateData.deadlineTime = deadlineTime;
+    if (priority !== undefined) updateData.priority = priority;
+    if (category !== undefined) updateData.category = category;
+    if (note !== undefined) updateData.note = note.trim();
+
+    if (recurring !== undefined) {
+      updateData.recurringType = recurring?.type || null;
+      updateData.recurringDays = recurring?.days
+        ? JSON.stringify(recurring.days)
+        : null;
+    }
+
+    if (status !== undefined) {
+      if (status === "done" && existing.recurringType) {
+        updateData.recurringLastCompleted = new Date();
+        updateData.deadline = getNextDeadline(existing);
+        updateData.status = "pending";
+      } else {
+        updateData.status = status;
+      }
+    }
+
+    const task = await prisma.task.update({
+      where: { id: Number(id) },
+      data: updateData,
+      include: { subtasks: true },
+    });
+
+    res.json(task);
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
+  }
+};
+
+// DELETE /api/tasks/:id
 export const deleteTask = async (req, res) => {
-  const { id } = req.params;
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
 
-  await db.read();
-  const index = db.data.tasks.findIndex((t) => t.id === id);
+    const existing = await prisma.task.findFirst({
+      where: { id: Number(id), userId },
+    });
 
-  if (index === -1) {
-    return res.status(404).json({ error: "Task not found" });
+    if (!existing) {
+      return res.status(404).json({ error: "ไม่พบ task" });
+    }
+
+    await prisma.subtask.deleteMany({ where: { taskId: Number(id) } });
+    await prisma.task.delete({ where: { id: Number(id) } });
+
+    res.json({ message: "ลบ task สำเร็จ" });
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
-
-  db.data.tasks.splice(index, 1);
-  await db.write();
-
-  res.json({ message: "Deleted" });
 };
 
-// PATCH /api/tasks/:id/subtasks/:subId — toggle subtask
-export const toggleSubtask = async (req, res) => {
-  const { id, subId } = req.params;
-
-  await db.read();
-  const task = db.data.tasks.find((t) => t.id === id);
-  if (!task) return res.status(404).json({ error: "Task not found" });
-
-  const sub = task.subtasks.find((s) => s.id === subId);
-  if (!sub) return res.status(404).json({ error: "Subtask not found" });
-
-  sub.done = !sub.done;
-  await db.write();
-  res.json(task);
-};
-
-// POST /api/tasks/:id/subtasks — เพิ่ม subtask
+// POST /api/tasks/:id/subtasks
 export const addSubtask = async (req, res) => {
-  const { id } = req.params;
-  const { title } = req.body;
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { title } = req.body;
 
-  if (!title?.trim()) {
-    return res.status(400).json({ error: "Subtask title is required" });
+    if (!title?.trim()) {
+      return res.status(400).json({ error: "กรุณากรอกชื่อ subtask" });
+    }
+
+    const task = await prisma.task.findFirst({
+      where: { id: Number(id), userId },
+    });
+
+    if (!task) {
+      return res.status(404).json({ error: "ไม่พบ task" });
+    }
+
+    await prisma.subtask.create({
+      data: {
+        title: title.trim(),
+        done: false,
+        taskId: Number(id),
+      },
+    });
+
+    const updated = await prisma.task.findUnique({
+      where: { id: Number(id) },
+      include: { subtasks: true },
+    });
+
+    res.status(201).json(updated);
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
-
-  await db.read();
-  const task = db.data.tasks.find((t) => t.id === id);
-  if (!task) return res.status(404).json({ error: "Task not found" });
-
-  const newSub = {
-    id: uuidv4(),
-    title: title.trim(),
-    done: false,
-  };
-
-  task.subtasks.push(newSub);
-  await db.write();
-  res.status(201).json(task);
 };
 
-// DELETE /api/tasks/:id/subtasks/:subId — ลบ subtask
+// PATCH /api/tasks/:id/subtasks/:subId
+export const toggleSubtask = async (req, res) => {
+  try {
+    const { id, subId } = req.params;
+    const userId = req.user.id;
+
+    const task = await prisma.task.findFirst({
+      where: { id: Number(id), userId },
+    });
+
+    if (!task) {
+      return res.status(404).json({ error: "ไม่พบ task" });
+    }
+
+    const sub = await prisma.subtask.findFirst({
+      where: { id: Number(subId), taskId: Number(id) },
+    });
+
+    if (!sub) {
+      return res.status(404).json({ error: "ไม่พบ subtask" });
+    }
+
+    await prisma.subtask.update({
+      where: { id: Number(subId) },
+      data: { done: !sub.done },
+    });
+
+    const updated = await prisma.task.findUnique({
+      where: { id: Number(id) },
+      include: { subtasks: true },
+    });
+
+    res.json(updated);
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
+  }
+};
+
+// DELETE /api/tasks/:id/subtasks/:subId
 export const deleteSubtask = async (req, res) => {
-  const { id, subId } = req.params;
+  try {
+    const { id, subId } = req.params;
+    const userId = req.user.id;
 
-  await db.read();
-  const task = db.data.tasks.find((t) => t.id === id);
-  if (!task) return res.status(404).json({ error: "Task not found" });
+    const task = await prisma.task.findFirst({
+      where: { id: Number(id), userId },
+    });
 
-  const index = task.subtasks.findIndex((s) => s.id === subId);
-  if (index === -1) return res.status(404).json({ error: "Subtask not found" });
+    if (!task) {
+      return res.status(404).json({ error: "ไม่พบ task" });
+    }
 
-  task.subtasks.splice(index, 1);
-  await db.write();
-  res.json(task);
+    const sub = await prisma.subtask.findFirst({
+      where: { id: Number(subId), taskId: Number(id) },
+    });
+
+    if (!sub) {
+      return res.status(404).json({ error: "ไม่พบ subtask" });
+    }
+
+    await prisma.subtask.delete({
+      where: { id: Number(subId) },
+    });
+
+    const updated = await prisma.task.findUnique({
+      where: { id: Number(id) },
+      include: { subtasks: true },
+    });
+
+    res.json(updated);
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
+  }
 };

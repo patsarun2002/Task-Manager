@@ -1,13 +1,11 @@
-import { Low } from 'lowdb'
-import { JSONFile } from 'lowdb/node'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const file = join(__dirname, 'db.json')
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
-const adapter = new JSONFile(file)
-const defaultData = { tasks: [] }
-const db = new Low(adapter, defaultData)
+process.on("beforeExit", async () => {
+  await prisma.$disconnect();
+});
 
-export default db
+export default prisma;
