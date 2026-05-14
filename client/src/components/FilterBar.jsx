@@ -56,7 +56,7 @@ export default function FilterBar({
             placeholder="ค้นหา task..."
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-8"
+            className="pl-8 bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500"
           />
         </div>
 
@@ -64,7 +64,7 @@ export default function FilterBar({
           value={sort || "__default"}
           onValueChange={(v) => onSortChange(v === "__default" ? "" : v)}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[160px] bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             <SelectValue placeholder="เรียง: ค่าเริ่มต้น" />
           </SelectTrigger>
           <SelectContent>
@@ -74,7 +74,7 @@ export default function FilterBar({
         </Select>
 
         <Select value={priority} onValueChange={onPriorityChange}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[160px] bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             <SelectValue placeholder="Priority: ทั้งหมด" />
           </SelectTrigger>
           <SelectContent>
@@ -89,7 +89,7 @@ export default function FilterBar({
           value={category || "__all"}
           onValueChange={(v) => onCategoryChange(v === "__all" ? "" : v)}
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[160px] bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100">
             <SelectValue placeholder="Category: ทั้งหมด" />
           </SelectTrigger>
           <SelectContent>
