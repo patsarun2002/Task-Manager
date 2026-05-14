@@ -34,48 +34,19 @@ function TaskApp({ onLogout, onLogin }) {
 
   const debouncedSearch = useDebounce(search, 400);
 
-  // reset page เมื่อ filter เปลี่ยน
-  const handleFilterChange = (v) => {
-    setFilter(v);
-    setPage(1);
-  };
-  const handleSearchChange = (v) => {
-    setSearch(v);
-    setPage(1);
-  };
-  const handleSortChange = (v) => {
-    setSort(v);
-    setPage(1);
-  };
-  const handlePriorityChange = (v) => {
-    setPriority(v);
-    setPage(1);
-  };
-  const handleCategoryChange = (v) => {
-    setCategory(v);
-    setPage(1);
-  };
+  const handleFilterChange = (v) => { setFilter(v); setPage(1); };
+  const handleSearchChange = (v) => { setSearch(v); setPage(1); };
+  const handleSortChange = (v) => { setSort(v); setPage(1); };
+  const handlePriorityChange = (v) => { setPriority(v); setPage(1); };
+  const handleCategoryChange = (v) => { setCategory(v); setPage(1); };
 
   const {
-    tasks,
-    totalPages,
-    isLoading,
-    createTask,
-    updateTask,
-    deleteTask,
-    reorderTasks,
-    addSubtask,
-    toggleSubtask,
-    deleteSubtask,
+    tasks, totalPages, isLoading,
+    createTask, updateTask, deleteTask, reorderTasks,
+    addSubtask, toggleSubtask, deleteSubtask,
   } = useTasks({
-    status: filter,
-    search: debouncedSearch,
-    sort,
-    priority,
-    category,
-    page,
-    limit: LIMIT,
-    enabled: isLoggedIn,
+    status: filter, search: debouncedSearch, sort, priority, category,
+    page, limit: LIMIT, enabled: isLoggedIn,
   });
 
   const summary = {
@@ -94,23 +65,19 @@ function TaskApp({ onLogout, onLogin }) {
     onLogout();
   };
 
-  // wrap async fn พร้อม toast
-  const wrap =
-    (fn, successMsg) =>
-    async (...args) => {
-      try {
-        await fn(...args);
-        if (successMsg) toast.success(successMsg);
-      } catch (err) {
-        toast.error(err.response?.data?.error || "เกิดข้อผิดพลาด");
-      }
-    };
+  const wrap = (fn, successMsg) => async (...args) => {
+    try {
+      await fn(...args);
+      if (successMsg) toast.success(successMsg);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "เกิดข้อผิดพลาด");
+    }
+  };
 
   const categories = [...new Set(tasks.map((t) => t.category).filter(Boolean))];
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      {/* Sonner toast container */}
       <Toaster position="bottom-right" richColors closeButton />
 
       {/* Header */}
@@ -127,9 +94,7 @@ function TaskApp({ onLogout, onLogin }) {
 
           <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
+              variant="ghost" size="icon" onClick={toggleTheme}
               title={isDark ? "Light mode" : "Dark mode"}
               className="text-zinc-500 dark:text-zinc-400"
             >
@@ -137,18 +102,14 @@ function TaskApp({ onLogout, onLogin }) {
             </Button>
             {isLoggedIn ? (
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
+                variant="ghost" size="sm" onClick={handleLogout}
                 className="text-zinc-500 dark:text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
               >
                 ออกจากระบบ
               </Button>
             ) : (
               <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowLoginModal(true)}
+                variant="ghost" size="sm" onClick={() => setShowLoginModal(true)}
                 className="text-zinc-500 dark:text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950"
               >
                 เข้าสู่ระบบ
@@ -167,11 +128,8 @@ function TaskApp({ onLogout, onLogin }) {
           onLoginRequired={() => setShowLoginModal(true)}
         />
         <FilterBar
-          filter={filter}
-          search={search}
-          sort={sort}
-          priority={priority}
-          category={category}
+          filter={filter} search={search} sort={sort}
+          priority={priority} category={category}
           onFilterChange={handleFilterChange}
           onSearchChange={handleSearchChange}
           onSortChange={handleSortChange}
@@ -186,13 +144,7 @@ function TaskApp({ onLogout, onLogin }) {
           <>
             <TaskList
               tasks={tasks}
-              onToggle={wrap(
-                (t) =>
-                  updateTask(t.id, {
-                    status: t.status === "done" ? "pending" : "done",
-                  }),
-                "อัปเดต task สำเร็จ"
-              )}
+              onToggle={wrap((t) => updateTask(t.id, { status: t.status === "done" ? "pending" : "done" }), "อัปเดต task สำเร็จ")}
               onEdit={wrap((id, data) => updateTask(id, data), "แก้ไข task สำเร็จ")}
               onDelete={wrap(deleteTask, "ลบ task สำเร็จ")}
               onAddSubtask={wrap((taskId, data) => addSubtask(taskId, data))}
@@ -219,7 +171,6 @@ function TaskApp({ onLogout, onLogin }) {
               ✕
             </button>
             <LoginPage
-              modal
               onLogin={() => {
                 onLogin();
                 setShowLoginModal(false);
