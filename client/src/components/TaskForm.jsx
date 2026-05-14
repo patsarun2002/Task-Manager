@@ -1,4 +1,13 @@
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const DAY_LABELS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 
@@ -12,11 +21,10 @@ export default function TaskForm({ onSubmit, isLoggedIn, onLoginRequired }) {
   const [recurringDays, setRecurringDays] = useState([]);
   const [err, setErr] = useState("");
 
-  const toggleDay = (day) => {
+  const toggleDay = (day) =>
     setRecurringDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,10 +61,6 @@ export default function TaskForm({ onSubmit, isLoggedIn, onLoginRequired }) {
     setRecurringDays([]);
   };
 
-  const inputCls =
-    "px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500";
-  const selectCls = `${inputCls} cursor-pointer text-zinc-600 dark:text-zinc-300`;
-
   return (
     <form
       onSubmit={handleSubmit}
@@ -64,70 +68,73 @@ export default function TaskForm({ onSubmit, isLoggedIn, onLoginRequired }) {
     >
       {/* Row 1: title + date + time + submit */}
       <div className="flex flex-wrap gap-2 items-center">
-        <input
+        <Input
           type="text"
           placeholder="ชื่อ task..."
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={100}
-          className={`${inputCls} flex-1 min-w-[180px] font-medium placeholder:font-normal`}
+          className="flex-1 min-w-[180px] font-medium placeholder:font-normal"
         />
-        <input
+        <Input
           type="date"
           value={deadline}
           onChange={(e) => setDeadline(e.target.value)}
-          className={inputCls}
+          className="w-auto"
         />
-        <input
+        <Input
           type="time"
           value={deadlineTime}
           onChange={(e) => setDeadlineTime(e.target.value)}
           disabled={!deadline}
-          className={`${inputCls} disabled:opacity-40 disabled:cursor-not-allowed`}
+          className="w-auto disabled:opacity-40 disabled:cursor-not-allowed"
         />
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition shadow-sm shadow-blue-200 whitespace-nowrap"
-        >
+        <Button type="submit" className="whitespace-nowrap">
           + เพิ่ม
-        </button>
+        </Button>
       </div>
 
       {/* Row 2: priority + category */}
       <div className="flex flex-wrap gap-2">
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
-          className={selectCls}
-        >
-          <option value="low">🟢 Low</option>
-          <option value="medium">🟡 Medium</option>
-          <option value="high">🔴 High</option>
-        </select>
-        <input
+        <Select value={priority} onValueChange={setPriority}>
+          <SelectTrigger className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="low">🟢 Low</SelectItem>
+            <SelectItem value="medium">🟡 Medium</SelectItem>
+            <SelectItem value="high">🔴 High</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
           type="text"
           placeholder="Category เช่น งาน, เรียน..."
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           maxLength={50}
-          className={`${inputCls} flex-1 min-w-[160px]`}
+          className="flex-1 min-w-[160px]"
         />
       </div>
 
       {/* Row 3: recurring */}
       <div className="flex flex-wrap gap-2 items-center">
-        <select
+        <Select
           value={recurring}
-          onChange={(e) => {
-            setRecurring(e.target.value);
+          onValueChange={(v) => {
+            setRecurring(v);
             setRecurringDays([]);
           }}
-          className={selectCls}
         >
-          <option value="none">🔁 ไม่ซ้ำ</option>
-          <option value="daily">🔁 ทุกวัน</option>
-          <option value="weekly">🔁 ทุกสัปดาห์</option>
-        </select>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">🔁 ไม่ซ้ำ</SelectItem>
+            <SelectItem value="daily">🔁 ทุกวัน</SelectItem>
+            <SelectItem value="weekly">🔁 ทุกสัปดาห์</SelectItem>
+          </SelectContent>
+        </Select>
+
         {recurring === "weekly" && (
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-zinc-400">วัน:</span>

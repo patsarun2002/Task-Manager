@@ -4,6 +4,7 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  reorderTasks,
   toggleSubtask,
   addSubtask,
   deleteSubtask,
@@ -13,13 +14,15 @@ import { verifyToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// verifyToken ทุก route — แต่ละคนเห็นแค่ task ตัวเอง
 router.use(verifyToken);
 
 router.get("/", getTasks);
 router.post("/", validateTask, createTask);
 router.put("/:id", validateTask, updateTask);
 router.delete("/:id", deleteTask);
+
+// reorder ต้องอยู่ก่อน /:id/subtasks เพื่อไม่ให้ชนกัน
+router.patch("/reorder", reorderTasks);
 
 router.post("/:id/subtasks", addSubtask);
 router.patch("/:id/subtasks/:subId", toggleSubtask);

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { login, register } from "../services/api";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export default function LoginPage({ onLogin, modal = false }) {
   const [mode, setMode] = useState("login");
@@ -53,7 +55,6 @@ export default function LoginPage({ onLogin, modal = false }) {
         ))}
       </div>
 
-      {/* Error / success */}
       {error && (
         <div
           className={`text-sm px-3 py-2 rounded-lg mb-4 ${
@@ -66,45 +67,30 @@ export default function LoginPage({ onLogin, modal = false }) {
         </div>
       )}
 
-      {/* Inputs */}
       <div className="flex flex-col gap-3">
-        <input
+        <Input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          className="w-full px-3 py-2.5 text-sm border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition"
         />
-        <input
+        <Input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          className="w-full px-3 py-2.5 text-sm border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition"
         />
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors duration-150 shadow-sm shadow-blue-200"
-        >
-          {loading
-            ? "กำลังโหลด..."
-            : mode === "login"
-              ? "เข้าสู่ระบบ"
-              : "สมัครสมาชิก"}
-        </button>
+        <Button onClick={handleSubmit} disabled={loading} className="w-full">
+          {loading ? "กำลังโหลด..." : mode === "login" ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
+        </Button>
       </div>
     </div>
   );
 
-  // แบบ modal — ไม่มี logo/title และไม่มี bg ข้างนอก
-  if (modal) {
-    return <>{card}</>;
-  }
+  if (modal) return <>{card}</>;
 
-  // แบบ standalone page — มี logo/title และ bg เต็มหน้า
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-900 px-4">
       <div className="w-full max-w-sm">
@@ -115,9 +101,7 @@ export default function LoginPage({ onLogin, modal = false }) {
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">
             Task Manager
           </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            จัดการงานของคุณได้ทุกที่
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">จัดการงานของคุณได้ทุกที่</p>
         </div>
         {card}
       </div>

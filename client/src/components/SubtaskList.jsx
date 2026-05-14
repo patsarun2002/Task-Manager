@@ -27,24 +27,25 @@ export default function SubtaskList({ task, onAdd, onToggle, onDelete }) {
               style={{ width: `${pct}%` }}
             />
           </div>
-          <span className="text-xs text-zinc-400 tabular-nums">{done}/{total}</span>
+          <span className="text-xs text-zinc-400 tabular-nums">
+            {done}/{total}
+          </span>
         </div>
       )}
 
       {/* List */}
       <ul className="flex flex-col gap-1">
         {task.subtasks.map((sub) => (
-          <li
-            key={sub.id}
-            className="flex items-center gap-2 group"
-          >
+          <li key={sub.id} className="flex items-center gap-2 group">
             <input
               type="checkbox"
               checked={sub.done}
               onChange={() => onToggle(task.id, sub.id)}
               className="w-3.5 h-3.5 accent-emerald-500 cursor-pointer flex-shrink-0"
             />
-            <span className={`flex-1 text-sm ${sub.done ? "line-through text-zinc-400" : "text-zinc-600 dark:text-zinc-300"}`}>
+            <span
+              className={`flex-1 text-sm ${sub.done ? "line-through text-zinc-400" : "text-zinc-600 dark:text-zinc-300"}`}
+            >
               {sub.title}
             </span>
             <button

@@ -34,16 +34,12 @@ const TaskItem = memo(function TaskItem({
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDeadline, setEditDeadline] = useState(task.deadline || "");
-  const [editDeadlineTime, setEditDeadlineTime] = useState(
-    task.deadlineTime || "",
-  );
+  const [editDeadlineTime, setEditDeadlineTime] = useState(task.deadlineTime || "");
   const [editPriority, setEditPriority] = useState(task.priority || "medium");
   const [editCategory, setEditCategory] = useState(task.category || "");
-  const [editRecurring, setEditRecurring] = useState(
-    task.recurringType || "none",
-  );
+  const [editRecurring, setEditRecurring] = useState(task.recurringType || "none");
   const [editRecurringDays, setEditRecurringDays] = useState(
-    task.recurringDays ? JSON.parse(task.recurringDays) : [],
+    task.recurringDays ? JSON.parse(task.recurringDays) : []
   );
   const [expanded, setExpanded] = useState(false);
   const [editNote, setEditNote] = useState(task.note || "");
@@ -56,9 +52,7 @@ const TaskItem = memo(function TaskItem({
     setEditPriority(task.priority || "medium");
     setEditCategory(task.category || "");
     setEditRecurring(task.recurringType || "none");
-    setEditRecurringDays(
-      task.recurringDays ? JSON.parse(task.recurringDays) : [],
-    );
+    setEditRecurringDays(task.recurringDays ? JSON.parse(task.recurringDays) : []);
     setEditNote(task.note || "");
   }, [task]);
 

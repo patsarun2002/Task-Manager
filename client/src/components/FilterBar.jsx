@@ -1,3 +1,12 @@
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+
 export default function FilterBar({
   filter,
   search,
@@ -39,50 +48,59 @@ export default function FilterBar({
       {/* Search + selects */}
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[180px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none">
             🔍
           </span>
-          <input
+          <Input
             type="text"
             placeholder="ค้นหา task..."
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+            className="pl-8"
           />
         </div>
 
-        <select
-          value={sort}
-          onChange={(e) => onSortChange(e.target.value)}
-          className="px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition text-zinc-600 dark:text-zinc-300 cursor-pointer"
+        <Select
+          value={sort || "__default"}
+          onValueChange={(v) => onSortChange(v === "__default" ? "" : v)}
         >
-          <option value="">เรียง: ค่าเริ่มต้น</option>
-          <option value="date">เรียง: วันที่</option>
-        </select>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="เรียง: ค่าเริ่มต้น" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__default">เรียง: ค่าเริ่มต้น</SelectItem>
+            <SelectItem value="date">เรียง: วันที่</SelectItem>
+          </SelectContent>
+        </Select>
 
-        <select
-          value={priority}
-          onChange={(e) => onPriorityChange(e.target.value)}
-          className="px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition text-zinc-600 dark:text-zinc-300 cursor-pointer"
-        >
-          <option value="all">Priority: ทั้งหมด</option>
-          <option value="high">🔴 High</option>
-          <option value="medium">🟡 Medium</option>
-          <option value="low">🟢 Low</option>
-        </select>
+        <Select value={priority} onValueChange={onPriorityChange}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Priority: ทั้งหมด" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Priority: ทั้งหมด</SelectItem>
+            <SelectItem value="high">🔴 High</SelectItem>
+            <SelectItem value="medium">🟡 Medium</SelectItem>
+            <SelectItem value="low">🟢 Low</SelectItem>
+          </SelectContent>
+        </Select>
 
-        <select
-          value={category}
-          onChange={(e) => onCategoryChange(e.target.value)}
-          className="px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition text-zinc-600 dark:text-zinc-300 cursor-pointer"
+        <Select
+          value={category || "__all"}
+          onValueChange={(v) => onCategoryChange(v === "__all" ? "" : v)}
         >
-          <option value="">Category: ทั้งหมด</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="Category: ทั้งหมด" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all">Category: ทั้งหมด</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );

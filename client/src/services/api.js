@@ -1,14 +1,13 @@
 import axios from "axios";
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL });
-// แนบ token ทุก request อัตโนมัติ
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ถ้า token หมดอายุ → refresh อัตโนมัติ
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
@@ -17,22 +16,20 @@ api.interceptors.response.use(
       original._retry = true;
       try {
         const refreshToken = localStorage.getItem("refreshToken");
-        const { data } = await axios.post(
-          `${import.meta.env.VITE_API_URL}/auth/refresh`,
-          { refreshToken },
-        );
+        const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
+          refreshToken,
+        });
         localStorage.setItem("accessToken", data.accessToken);
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
       } catch {
-        // refresh หมดอายุ → logout
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         window.location.href = "/";
       }
     }
     return Promise.reject(err);
-  },
+  }
 );
 
 // ── Auth ──────────────────────────────────────────────
@@ -55,9 +52,9 @@ export const getTasks = (params) => api.get("/tasks", { params });
 export const createTask = (data) => api.post("/tasks", data);
 export const updateTask = (id, data) => api.put(`/tasks/${id}`, data);
 export const deleteTask = (id) => api.delete(`/tasks/${id}`);
-export const addSubtask = (taskId, data) =>
-  api.post(`/tasks/${taskId}/subtasks`, data);
-export const toggleSubtask = (taskId, subId) =>
-  api.patch(`/tasks/${taskId}/subtasks/${subId}`);
-export const deleteSubtask = (taskId, subId) =>
-  api.delete(`/tasks/${taskId}/subtasks/${subId}`);
+// รับ [{ id, order }] — ส่ง batch update ลำดับทีเดียว
+export const reorderTasks = (tasks) => api.patch("/tasks/reorder", { tasks });
+
+export const addSubtask = (taskId, data) => api.post(`/tasks/${taskId}/subtasks`, data);
+export const toggleSubtask = (taskId, subId) => api.patch(`/tasks/${taskId}/subtasks/${subId}`);
+export const deleteSubtask = (taskId, subId) => api.delete(`/tasks/${taskId}/subtasks/${subId}`);

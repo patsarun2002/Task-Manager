@@ -1,17 +1,7 @@
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import SortableTaskItem from "./SortableTaskItem";
 
 export default function TaskList({
@@ -26,9 +16,7 @@ export default function TaskList({
 }) {
   const parentRef = useRef();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const handleDragEnd = ({ active, over }) => {
     if (!over || active.id === over.id) return;
@@ -44,7 +32,14 @@ export default function TaskList({
     overscan: 5,
   });
 
-  const sharedProps = { onToggle, onEdit, onDelete, onAddSubtask, onToggleSubtask, onDeleteSubtask };
+  const sharedProps = {
+    onToggle,
+    onEdit,
+    onDelete,
+    onAddSubtask,
+    onToggleSubtask,
+    onDeleteSubtask,
+  };
 
   if (tasks.length === 0) {
     return (

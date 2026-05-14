@@ -37,9 +37,7 @@ export default function SummaryBar({ summary }) {
           key={item.label}
           className={`flex flex-col items-center py-3 px-2 rounded-xl border ${item.bg} ${item.border}`}
         >
-          <span className={`text-2xl font-bold leading-none ${item.color}`}>
-            {item.value}
-          </span>
+          <span className={`text-2xl font-bold leading-none ${item.color}`}>{item.value}</span>
           <span className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{item.label}</span>
         </div>
       ))}

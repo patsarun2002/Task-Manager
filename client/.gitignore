@@ -33,3 +33,6 @@ server/dist
 
 # local database (ถ้าไม่อยากอัป)
 server/db.json
+
+# .gitignore
+coverage/

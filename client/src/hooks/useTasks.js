@@ -4,6 +4,7 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  reorderTasks,
   addSubtask,
   toggleSubtask,
   deleteSubtask,
@@ -22,24 +23,26 @@ export function useDebounce(value, delay = 400) {
 
 // ── Main hook ─────────────────────────────────────────
 export function useTasks(filters) {
-  const { enabled = true } = filters;
+  const { enabled = true, ...queryParams } = filters;
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["tasks"] });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["tasks", filters],
-    queryFn: () => getTasks(filters).then((r) => r.data),
+    queryKey: ["tasks", queryParams],
+    queryFn: () => getTasks(queryParams).then((r) => r.data),
     enabled,
   });
 
   const tasks = data?.tasks ?? data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 1;
 
   const create = useMutation({
     mutationFn: createTask,
     onMutate: async (newTask) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
-      const prev = qc.getQueryData(["tasks", filters]);
-      qc.setQueryData(["tasks", filters], (old) => {
+      const prev = qc.getQueryData(["tasks", queryParams]);
+      qc.setQueryData(["tasks", queryParams], (old) => {
         const list = old?.tasks ?? old ?? [];
         const fake = {
           id: "temp-" + Date.now(),
@@ -47,14 +50,11 @@ export function useTasks(filters) {
           status: "pending",
           subtasks: [],
         };
-        return old?.tasks
-          ? { ...old, tasks: [fake, ...list] }
-          : [fake, ...list];
+        return old?.tasks ? { ...old, tasks: [fake, ...list] } : [fake, ...list];
       });
       return { prev };
     },
-    onError: (_err, _vars, ctx) =>
-      qc.setQueryData(["tasks", filters], ctx.prev),
+    onError: (_err, _vars, ctx) => qc.setQueryData(["tasks", queryParams], ctx.prev),
     onSettled: invalidate,
   });
 
@@ -62,16 +62,15 @@ export function useTasks(filters) {
     mutationFn: ({ id, data }) => updateTask(id, data),
     onMutate: async ({ id, data }) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
-      const prev = qc.getQueryData(["tasks", filters]);
-      qc.setQueryData(["tasks", filters], (old) => {
+      const prev = qc.getQueryData(["tasks", queryParams]);
+      qc.setQueryData(["tasks", queryParams], (old) => {
         const list = old?.tasks ?? old ?? [];
         const updated = list.map((t) => (t.id === id ? { ...t, ...data } : t));
         return old?.tasks ? { ...old, tasks: updated } : updated;
       });
       return { prev };
     },
-    onError: (_err, _vars, ctx) =>
-      qc.setQueryData(["tasks", filters], ctx.prev),
+    onError: (_err, _vars, ctx) => qc.setQueryData(["tasks", queryParams], ctx.prev),
     onSettled: invalidate,
   });
 
@@ -79,16 +78,34 @@ export function useTasks(filters) {
     mutationFn: deleteTask,
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
-      const prev = qc.getQueryData(["tasks", filters]);
-      qc.setQueryData(["tasks", filters], (old) => {
+      const prev = qc.getQueryData(["tasks", queryParams]);
+      qc.setQueryData(["tasks", queryParams], (old) => {
         const list = old?.tasks ?? old ?? [];
         const filtered = list.filter((t) => t.id !== id);
         return old?.tasks ? { ...old, tasks: filtered } : filtered;
       });
       return { prev };
     },
-    onError: (_err, _vars, ctx) =>
-      qc.setQueryData(["tasks", filters], ctx.prev),
+    onError: (_err, _vars, ctx) => qc.setQueryData(["tasks", queryParams], ctx.prev),
+    onSettled: invalidate,
+  });
+
+  const reorder = useMutation({
+    mutationFn: (orderedTasks) => {
+      // ส่ง [{ id, order }] ไป API
+      const payload = orderedTasks.map((t, i) => ({ id: t.id, order: i }));
+      return reorderTasks(payload);
+    },
+    onMutate: async (orderedTasks) => {
+      await qc.cancelQueries({ queryKey: ["tasks"] });
+      const prev = qc.getQueryData(["tasks", queryParams]);
+      // optimistic: เรียงตาม array ที่รับมาทันที
+      qc.setQueryData(["tasks", queryParams], (old) =>
+        old?.tasks ? { ...old, tasks: orderedTasks } : orderedTasks
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => qc.setQueryData(["tasks", queryParams], ctx.prev),
     onSettled: invalidate,
   });
 
@@ -109,11 +126,14 @@ export function useTasks(filters) {
 
   return {
     tasks,
+    total,
+    totalPages,
     isLoading,
     error,
     createTask: (data) => create.mutateAsync(data),
     updateTask: (id, data) => update.mutateAsync({ id, data }),
     deleteTask: (id) => remove.mutateAsync(id),
+    reorderTasks: (orderedTasks) => reorder.mutateAsync(orderedTasks),
     addSubtask: (taskId, data) => addSub.mutateAsync({ taskId, data }),
     toggleSubtask: (taskId, subId) => toggleSub.mutateAsync({ taskId, subId }),
     deleteSubtask: (taskId, subId) => deleteSub.mutateAsync({ taskId, subId }),
