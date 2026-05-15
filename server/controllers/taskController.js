@@ -318,3 +318,41 @@ export const deleteSubtask = async (req, res) => {
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
+
+export const getSummary = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const now = new Date();
+
+    const [total, done, overdue] = await Promise.all([
+      prisma.task.count({ where: { userId } }),
+      prisma.task.count({ where: { userId, status: "done" } }),
+      prisma.task.count({
+        where: {
+          userId,
+          status: "pending",
+          deadline: { lt: now },
+        },
+      }),
+    ]);
+
+    res.json({ total, done, pending: total - done, overdue });
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
+  }
+};
+
+export const getCategories = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const tasks = await prisma.task.findMany({
+      where: { userId, category: { not: "" } },
+      select: { category: true },
+      distinct: ["category"],
+      orderBy: { category: "asc" },
+    });
+    res.json(tasks.map((t) => t.category));
+  } catch {
+    res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
+  }
+};

@@ -12,7 +12,7 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config;
-    if (err.response?.status === 403 && !original._retry) {
+    if (err.response?.status === 401 && !original._retry && !original.url?.includes("/auth/")) {
       original._retry = true;
       try {
         const refreshToken = localStorage.getItem("refreshToken");
@@ -58,3 +58,6 @@ export const reorderTasks = (tasks) => api.patch("/tasks/reorder", { tasks });
 export const addSubtask = (taskId, data) => api.post(`/tasks/${taskId}/subtasks`, data);
 export const toggleSubtask = (taskId, subId) => api.patch(`/tasks/${taskId}/subtasks/${subId}`);
 export const deleteSubtask = (taskId, subId) => api.delete(`/tasks/${taskId}/subtasks/${subId}`);
+
+export const getTaskSummary = () => api.get("/tasks/summary");
+export const getTaskCategories = () => api.get("/tasks/categories");

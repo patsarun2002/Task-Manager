@@ -8,6 +8,8 @@ import {
   toggleSubtask,
   addSubtask,
   deleteSubtask,
+  getSummary,
+  getCategories,
 } from "../controllers/taskController.js";
 import { validateTask } from "../middleware/validate.js";
 import { verifyToken } from "../middleware/auth.js";
@@ -16,12 +18,15 @@ const router = express.Router();
 
 router.use(verifyToken);
 
+// ต้องอยู่ก่อน /:id ทุกตัว
+router.get("/summary", getSummary);
+router.get("/categories", getCategories);
+
 router.get("/", getTasks);
 router.post("/", validateTask, createTask);
 router.put("/:id", validateTask, updateTask);
 router.delete("/:id", deleteTask);
 
-// reorder ต้องอยู่ก่อน /:id/subtasks เพื่อไม่ให้ชนกัน
 router.patch("/reorder", reorderTasks);
 
 router.post("/:id/subtasks", addSubtask);

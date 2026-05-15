@@ -155,3 +155,10 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1aa;
 }
+
+/* ── Task action buttons: always visible on touch ───────── */
+@media (hover: none) {
+  .task-actions {
+    opacity: 1 !important;
+  }
+}

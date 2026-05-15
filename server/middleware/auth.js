@@ -14,7 +14,7 @@ export function verifyToken(req, res, next) {
     next();
   } catch  {
     return res
-      .status(403)
+      .status(401)
       .json({ error: "token ไม่ถูกต้องหรือหมดอายุแล้ว กรุณาเข้าสู่ระบบใหม่" });
   }
 }

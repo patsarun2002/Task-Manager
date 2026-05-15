@@ -25,7 +25,12 @@ export function useDebounce(value, delay = 400) {
 export function useTasks(filters) {
   const { enabled = true, ...queryParams } = filters;
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["tasks"] });
+  const invalidate = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ["tasks"] }),
+      qc.invalidateQueries({ queryKey: ["summary"] }),
+      qc.invalidateQueries({ queryKey: ["categories"] }),
+    ]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["tasks", queryParams],

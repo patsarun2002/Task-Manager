@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Toaster, toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "./store/authStore";
 import { useTasks, useDebounce } from "./hooks/useTasks";
-import { logout } from "./services/api";
+import { logout, getTaskSummary, getTaskCategories } from "./services/api";
 import TaskForm from "./components/TaskForm";
 import TaskList from "./components/TaskList";
 import FilterBar from "./components/FilterBar";
@@ -49,15 +49,11 @@ function TaskApp({ onLogout, onLogin }) {
     page, limit: LIMIT, enabled: isLoggedIn,
   });
 
-  const summary = {
-    total: tasks.length,
-    pending: tasks.filter((t) => t.status === "pending").length,
-    done: tasks.filter((t) => t.status === "done").length,
-    overdue: tasks.filter((t) => {
-      if (!t.deadline || t.status === "done") return false;
-      return new Date(`${t.deadline}T${t.deadlineTime || "23:59:59"}`) < new Date();
-    }).length,
-  };
+  const { data: summary = { total: 0, pending: 0, done: 0, overdue: 0 } } = useQuery({
+    queryKey: ["summary"],
+    queryFn: () => getTaskSummary().then((r) => r.data),
+    enabled: isLoggedIn,
+  });
 
   const handleLogout = async () => {
     await logout();
@@ -74,7 +70,11 @@ function TaskApp({ onLogout, onLogin }) {
     }
   };
 
-  const categories = [...new Set(tasks.map((t) => t.category).filter(Boolean))];
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => getTaskCategories().then((r) => r.data),
+    enabled: isLoggedIn,
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
