@@ -115,10 +115,20 @@ function TaskApp({ onLogout, onLogin }) {
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-zinc-900/80 backdrop-blur border-b border-zinc-200 dark:border-zinc-700">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm shadow-blue-200">
-              <span className="text-white text-xs font-bold">✓</span>
-            </div>
-            <span className="font-semibold text-zinc-800 dark:text-zinc-100 tracking-tight">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 26 26"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect width="26" height="26" rx="13" fill="#7c3aed" />
+              <rect x="8" y="9" width="3" height="3" rx="1" fill="white" />
+              <rect x="8" y="14" width="3" height="3" rx="1" fill="white" opacity="0.5" />
+              <rect x="13" y="9.6" width="6" height="1.8" rx="0.9" fill="white" />
+              <rect x="13" y="14.6" width="4" height="1.8" rx="0.9" fill="white" opacity="0.5" />
+            </svg>
+            <span className="font-semibold tracking-tight bg-gradient-to-r from-violet-600 to-blue-500 bg-clip-text text-transparent">
               Task Manager
             </span>
           </div>
@@ -126,7 +136,7 @@ function TaskApp({ onLogout, onLogin }) {
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={toggleTheme}
               title={isDark ? "Light mode" : "Dark mode"}
               className="text-zinc-500 dark:text-zinc-400"

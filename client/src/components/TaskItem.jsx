@@ -5,18 +5,18 @@ import TaskEditForm from "./TaskEditForm";
 const PRIORITY_CONFIG = {
   high: {
     label: "High",
-    badge: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400",
-    accent: "border-l-red-400",
+    badge: "bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400",
+    accent: "border-l-red-400 dark:border-l-red-500",
   },
   medium: {
     label: "Medium",
-    badge: "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
-    accent: "border-l-amber-400",
+    badge: "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400",
+    accent: "border-l-amber-400 dark:border-l-amber-500",
   },
   low: {
     label: "Low",
-    badge: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400",
-    accent: "border-l-emerald-400",
+    badge: "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400",
+    accent: "border-l-emerald-400 dark:border-l-emerald-500",
   },
 };
 
