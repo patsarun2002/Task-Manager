@@ -142,7 +142,7 @@ function TaskApp({ onLogout, onLogin }) {
                 >
                   <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center">
                     <span className="text-white text-xs font-semibold">
-                      {email[0].toUpperCase()}
+                      {email?.[0]?.toUpperCase() ?? "?"}
                     </span>
                   </div>
                   <span className="font-medium">{email.split("@")[0]}</span>
