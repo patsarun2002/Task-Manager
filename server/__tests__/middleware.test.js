@@ -64,7 +64,7 @@ describe("Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(401);
     });
 
-    test("token หมดอายุ/ไม่ถูกต้อง — คืน 403", () => {
+    test("token หมดอายุ/ไม่ถูกต้อง — คืน 401", () => {
       const { req, res, next } = mockMiddleware({
         headers: { authorization: "Bearer bad_token" },
       });
@@ -74,7 +74,7 @@ describe("Middleware", () => {
 
       verifyToken(req, res, next);
 
-      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.status).toHaveBeenCalledWith(401);
       expect(next).not.toHaveBeenCalled();
     });
   });
@@ -274,7 +274,7 @@ describe("Middleware", () => {
 
     test("sanitize array of strings", () => {
       const { req, res, next } = mockMiddleware({
-        body: { tags: ["clean", '<script>bad</script>'] },
+        body: { tags: ["clean", "<script>bad</script>"] },
       });
 
       sanitizeBody(req, res, next);
