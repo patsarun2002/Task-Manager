@@ -13,10 +13,17 @@ applyTheme(savedDark);
 
 export const useAuthStore = create((set) => ({
   isLoggedIn: !!localStorage.getItem("accessToken"),
+  email: localStorage.getItem("userEmail") || "",
   isDark: savedDark,
 
-  login: () => set({ isLoggedIn: true }),
-  logout: () => set({ isLoggedIn: false }),
+  login: (email) => {
+    localStorage.setItem("userEmail", email);
+    set({ isLoggedIn: true, email });
+  },
+  logout: () => {
+    localStorage.removeItem("userEmail");
+    set({ isLoggedIn: false, email: "" });
+  },
 
   toggleTheme: () =>
     set((state) => {

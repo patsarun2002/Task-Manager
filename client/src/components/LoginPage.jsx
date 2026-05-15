@@ -17,7 +17,7 @@ export default function LoginPage({ onLogin }) {
     try {
       if (mode === "login") {
         await login({ email, password });
-        onLogin();
+        onLogin(email);
       } else {
         await register({ email, password });
         setMode("login");

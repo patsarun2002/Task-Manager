@@ -5,18 +5,18 @@ import TaskEditForm from "./TaskEditForm";
 const PRIORITY_CONFIG = {
   high: {
     label: "High",
-    dot: "bg-red-500",
-    badge: "bg-red-50 text-red-600 border-red-200",
+    badge: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400",
+    accent: "border-l-red-400",
   },
   medium: {
     label: "Medium",
-    dot: "bg-amber-400",
-    badge: "bg-amber-50 text-amber-600 border-amber-200",
+    badge: "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
+    accent: "border-l-amber-400",
   },
   low: {
     label: "Low",
-    dot: "bg-emerald-400",
-    badge: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    badge: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400",
+    accent: "border-l-emerald-400",
   },
 };
 
@@ -71,7 +71,6 @@ const TaskItem = memo(function TaskItem({
           : editRecurring === "daily"
             ? { type: "daily", days: [] }
             : { type: "weekly", days: editRecurringDays };
-
       await onEdit(task.id, {
         title: editTitle,
         deadline: editDeadline,
@@ -107,12 +106,14 @@ const TaskItem = memo(function TaskItem({
 
   return (
     <div
-      className={`group bg-white dark:bg-zinc-800 border rounded-xl px-4 py-3 mb-2 transition-all duration-150 ${
+      className={`group bg-white dark:bg-zinc-800 border-l-4 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 mb-2 transition-all duration-150 ${
+        pCfg.accent
+      } ${
         isDone
-          ? "border-zinc-100 dark:border-zinc-700 opacity-60"
+          ? "opacity-60"
           : isOverdue
-            ? "border-red-200 bg-red-50/30 dark:bg-red-950/20"
-            : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 hover:shadow-sm"
+            ? "border-red-200 bg-red-50/30 dark:bg-red-950/20 border-l-red-400"
+            : "hover:border-zinc-300 dark:hover:border-zinc-600 hover:shadow-sm"
       }`}
     >
       <div className="flex items-start gap-3">
@@ -155,31 +156,37 @@ const TaskItem = memo(function TaskItem({
         ) : (
           <div className="flex-1 min-w-0">
             <span
-              className={`block text-sm font-medium leading-snug ${isDone ? "line-through text-zinc-400" : "text-zinc-800 dark:text-zinc-100"}`}
+              className={`block text-sm font-medium leading-snug ${
+                isDone ? "line-through text-zinc-400" : "text-zinc-800 dark:text-zinc-100"
+              }`}
             >
               {task.title}
             </span>
 
             {/* Meta row */}
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-              {/* Priority dot + label */}
+              {/* Priority badge */}
               <span
-                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium ${pCfg.badge}`}
+                className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium ${pCfg.badge}`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${pCfg.dot}`} />
                 {pCfg.label}
               </span>
 
+              {/* Category */}
               {task.category && (
-                <span className="text-xs px-2 py-0.5 bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 rounded-full border border-zinc-200 dark:border-zinc-600">
-                  {" "}
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
                   {task.category}
                 </span>
               )}
 
+              {/* Deadline */}
               {task.deadline && (
                 <span
-                  className={`text-xs ${isOverdue ? "text-red-500 font-medium" : "text-zinc-400"}`}
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    isOverdue
+                      ? "bg-red-50 dark:bg-red-950 text-red-500"
+                      : "bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400"
+                  }`}
                 >
                   {isOverdue ? "⚠ " : "📅 "}
                   {new Date(task.deadline).toLocaleDateString("th-TH")}
@@ -187,8 +194,9 @@ const TaskItem = memo(function TaskItem({
                 </span>
               )}
 
+              {/* Recurring */}
               {task.recurringType && (
-                <span className="text-xs text-zinc-400">
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400">
                   🔁 {task.recurringType === "daily" ? "ทุกวัน" : "ทุกสัปดาห์"}
                 </span>
               )}
