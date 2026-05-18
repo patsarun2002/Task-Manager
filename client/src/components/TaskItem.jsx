@@ -46,6 +46,7 @@ const TaskItem = memo(function TaskItem({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
+    if (editing) return;
     setEditTitle(task.title);
     setEditDeadline(task.deadline || "");
     setEditDeadlineTime(task.deadlineTime || "");
@@ -54,7 +55,7 @@ const TaskItem = memo(function TaskItem({
     setEditRecurring(task.recurringType || "none");
     setEditRecurringDays(task.recurringDays ? JSON.parse(task.recurringDays) : []);
     setEditNote(task.note || "");
-  }, [task]);
+  }, [task, editing]);
 
   const isOverdue = useMemo(() => {
     if (!task.deadline || task.status === "done") return false;
@@ -198,6 +199,12 @@ const TaskItem = memo(function TaskItem({
               {task.recurringType && (
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400">
                   🔁 {task.recurringType === "daily" ? "ทุกวัน" : "ทุกสัปดาห์"}
+                </span>
+              )}
+
+              {task.subtasks && task.subtasks.length > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400">
+                  ✓ {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length}
                 </span>
               )}
             </div>

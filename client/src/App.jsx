@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Toaster, toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "./store/authStore";
@@ -90,16 +90,30 @@ function TaskApp({ onLogout, onLogin }) {
     onLogout();
   };
 
-  const wrap =
-    (fn, successMsg) =>
-    async (...args) => {
-      try {
-        await fn(...args);
-        if (successMsg) toast.success(successMsg);
-      } catch (err) {
-        toast.error(err.response?.data?.error || "เกิดข้อผิดพลาด");
-      }
-    };
+  // wrap — คืน [handler, isPending] เพื่อให้ปุ่ม disabled ขณะรอ API
+  const pendingRef = useRef({});
+  const [pendingKeys, setPendingKeys] = useState({});
+
+  const wrap = useCallback(
+    (fn, successMsg, key = fn.name || Math.random().toString(36).slice(2)) =>
+      async (...args) => {
+        if (pendingRef.current[key]) return;
+        pendingRef.current[key] = true;
+        setPendingKeys((p) => ({ ...p, [key]: true }));
+        try {
+          await fn(...args);
+          if (successMsg) toast.success(successMsg);
+        } catch (err) {
+          toast.error(err.response?.data?.error || "เกิดข้อผิดพลาด");
+        } finally {
+          pendingRef.current[key] = false;
+          setPendingKeys((p) => ({ ...p, [key]: false }));
+        }
+      },
+    []
+  );
+
+  const isCreating = !!pendingKeys["createTask"];
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -195,7 +209,8 @@ function TaskApp({ onLogout, onLogin }) {
       <main className="max-w-3xl mx-auto px-4 py-6 pb-20">
         <SummaryBar summary={summary} />
         <TaskForm
-          onSubmit={wrap(createTask, "เพิ่ม task สำเร็จ")}
+          onSubmit={wrap(createTask, "เพิ่ม task สำเร็จ", "createTask")}
+          isSubmitting={isCreating}
           isLoggedIn={isLoggedIn}
           onLoginRequired={() => setShowLoginModal(true)}
         />

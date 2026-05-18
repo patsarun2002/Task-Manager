@@ -3,11 +3,30 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import TaskForm from "@/components/TaskForm";
 
+// Mock Shadcn Select ด้วย native <select> เพราะ Radix UI ใช้ Pointer Events
+// ซึ่ง jsdom ไม่รองรับ ทำให้ userEvent.click พัง
+vi.mock("@/components/ui/select", () => ({
+  Select: ({ value, onValueChange, children }) => (
+    <select value={value} onChange={(e) => onValueChange(e.target.value)} data-testid="select">
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }) => <>{children}</>,
+  SelectItem: ({ value, children }) => <option value={value}>{children}</option>,
+}));
+
 const defaultProps = {
   onSubmit: vi.fn(),
   isLoggedIn: true,
   onLoginRequired: vi.fn(),
 };
+
+const openForm = () => fireEvent.click(screen.getByText("+ เพิ่ม task ใหม่..."));
+
+// recurring select คือ <select> ตัวที่ 2 (index 1) — ตัวแรกคือ priority
+const getRecurringSelect = () => screen.getAllByTestId("select")[1];
 
 describe("TaskForm", () => {
   beforeEach(() => {
@@ -16,6 +35,7 @@ describe("TaskForm", () => {
 
   it("render input fields ครบ", () => {
     render(<TaskForm {...defaultProps} />);
+    openForm();
 
     expect(screen.getByPlaceholderText("ชื่อ task...")).toBeInTheDocument();
     expect(screen.getByText("+ เพิ่ม")).toBeInTheDocument();
@@ -23,6 +43,7 @@ describe("TaskForm", () => {
 
   it("แสดง error เมื่อ submit โดยไม่กรอก title", async () => {
     render(<TaskForm {...defaultProps} />);
+    openForm();
 
     fireEvent.click(screen.getByText("+ เพิ่ม"));
 
@@ -34,7 +55,9 @@ describe("TaskForm", () => {
 
   it("เรียก onSubmit พร้อม data ที่ถูกต้องเมื่อกรอก title", async () => {
     const user = userEvent.setup();
+    defaultProps.onSubmit.mockResolvedValue(undefined);
     render(<TaskForm {...defaultProps} />);
+    openForm();
 
     await user.type(screen.getByPlaceholderText("ชื่อ task..."), "ทดสอบ task");
     await user.click(screen.getByText("+ เพิ่ม"));
@@ -54,13 +77,13 @@ describe("TaskForm", () => {
     const user = userEvent.setup();
     defaultProps.onSubmit.mockResolvedValue(undefined);
     render(<TaskForm {...defaultProps} />);
+    openForm();
 
-    const input = screen.getByPlaceholderText("ชื่อ task...");
-    await user.type(input, "task ที่จะถูกล้าง");
+    await user.type(screen.getByPlaceholderText("ชื่อ task..."), "task ที่จะถูกล้าง");
     await user.click(screen.getByText("+ เพิ่ม"));
 
     await waitFor(() => {
-      expect(input.value).toBe("");
+      expect(screen.getByText("+ เพิ่ม task ใหม่...")).toBeInTheDocument();
     });
   });
 
@@ -68,8 +91,7 @@ describe("TaskForm", () => {
     const user = userEvent.setup();
     render(<TaskForm {...defaultProps} isLoggedIn={false} />);
 
-    await user.type(screen.getByPlaceholderText("ชื่อ task..."), "test");
-    await user.click(screen.getByText("+ เพิ่ม"));
+    await user.click(screen.getByText("+ เพิ่ม task ใหม่..."));
 
     expect(defaultProps.onLoginRequired).toHaveBeenCalled();
     expect(defaultProps.onSubmit).not.toHaveBeenCalled();
@@ -77,11 +99,11 @@ describe("TaskForm", () => {
 
   it("แสดง error เมื่อเลือก weekly recurring แต่ไม่ได้เลือกวัน", async () => {
     const user = userEvent.setup();
+    defaultProps.onSubmit.mockResolvedValue(undefined);
     render(<TaskForm {...defaultProps} />);
+    openForm();
 
-    // เลือก recurring weekly ผ่าน select
-    const recurringSelect = screen.getByDisplayValue("🔁 ไม่ซ้ำ");
-    await user.selectOptions(recurringSelect, "weekly");
+    fireEvent.change(getRecurringSelect(), { target: { value: "weekly" } });
 
     await user.type(screen.getByPlaceholderText("ชื่อ task..."), "recurring task");
     await user.click(screen.getByText("+ เพิ่ม"));
@@ -93,10 +115,11 @@ describe("TaskForm", () => {
 
   it("ส่ง recurring daily ได้ถูกต้อง", async () => {
     const user = userEvent.setup();
+    defaultProps.onSubmit.mockResolvedValue(undefined);
     render(<TaskForm {...defaultProps} />);
+    openForm();
 
-    const recurringSelect = screen.getByDisplayValue("🔁 ไม่ซ้ำ");
-    await user.selectOptions(recurringSelect, "daily");
+    fireEvent.change(getRecurringSelect(), { target: { value: "daily" } });
 
     await user.type(screen.getByPlaceholderText("ชื่อ task..."), "ทำทุกวัน");
     await user.click(screen.getByText("+ เพิ่ม"));

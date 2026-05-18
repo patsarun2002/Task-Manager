@@ -37,6 +37,10 @@ model Task {
   userId                 Int
   user                   User      @relation(fields: [userId], references: [id])
   subtasks               Subtask[]
+
+  @@index([userId, status])
+  @@index([userId, deadline])
+  @@index([userId, order])
 }
 
 model Subtask {

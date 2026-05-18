@@ -40,7 +40,10 @@ export default function LoginPage({ onLogin }) {
         ].map((t) => (
           <button
             key={t.value}
-            onClick={() => { setMode(t.value); setError(""); }}
+            onClick={() => {
+              setMode(t.value);
+              setError("");
+            }}
             className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-150 ${
               mode === t.value
                 ? "bg-white dark:bg-zinc-600 text-zinc-900 dark:text-zinc-100 shadow-sm"
@@ -53,11 +56,13 @@ export default function LoginPage({ onLogin }) {
       </div>
 
       {error && (
-        <div className={`text-sm px-3 py-2 rounded-lg mb-4 ${
-          error.includes("สำเร็จ")
-            ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-900"
-            : "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900"
-        }`}>
+        <div
+          className={`text-sm px-3 py-2 rounded-lg mb-4 ${
+            error.includes("สำเร็จ")
+              ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-900"
+              : "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900"
+          }`}
+        >
           {error}
         </div>
       )}

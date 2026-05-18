@@ -43,7 +43,6 @@ describe("TaskEditForm", () => {
 
   it("render date input และ time input", () => {
     render(<TaskEditForm {...defaultProps} />);
-    const inputs = screen.getAllByRole("textbox"); // type=text inputs
     const dateInputs = document.querySelectorAll('input[type="date"]');
     const timeInputs = document.querySelectorAll('input[type="time"]');
     expect(dateInputs.length).toBe(1);
@@ -161,7 +160,7 @@ describe("TaskEditForm", () => {
     // onValueChange ผ่าน SelectTrigger role="combobox" + aria approach
     const setEditRecurring = vi.fn();
     const setEditRecurringDays = vi.fn();
-    const { container } = render(
+    render(
       <TaskEditForm
         {...defaultProps}
         editRecurring="weekly"
