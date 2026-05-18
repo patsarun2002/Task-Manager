@@ -11,6 +11,12 @@ function generateAccessToken(userId) {
   });
 }
 
+async function cleanupExpiredTokens() {
+  await prisma.refreshToken.deleteMany({
+    where: { expiresAt: { lt: new Date() } },
+  });
+}
+
 function generateRefreshToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
@@ -44,7 +50,8 @@ export async function register(req, res) {
     });
 
     res.status(201).json({ message: "สมัครสมาชิกสำเร็จ", userId: user.id });
-  } catch {
+  } catch (err) {
+    console.error("[register]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 }
@@ -80,8 +87,13 @@ export async function login(req, res) {
       },
     });
 
+    cleanupExpiredTokens().catch((err) =>
+      console.error("[cleanupExpiredTokens]", err),
+    );
+
     res.json({ accessToken, refreshToken });
-  } catch {
+  } catch (err) {
+    console.error("[login]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 }
@@ -120,7 +132,8 @@ export async function refresh(req, res) {
 
     const accessToken = generateAccessToken(payload.userId);
     res.json({ accessToken, refreshToken: newRefreshToken });
-  } catch {
+  } catch (err) {
+    console.error("[refresh]", err);
     res.status(403).json({ error: "refresh token ไม่ถูกต้อง" });
   }
 }
@@ -133,7 +146,8 @@ export async function logout(req, res) {
       await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
     }
     res.json({ message: "ออกจากระบบสำเร็จ" });
-  } catch {
+  } catch (err) {
+    console.error("[logout]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 }

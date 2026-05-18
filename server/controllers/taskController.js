@@ -92,7 +92,8 @@ export const getTasks = async (req, res) => {
       page: safePage,
       totalPages: Math.ceil(total / safeLimit),
     });
-  } catch {
+  } catch (err) {
+    console.error("[getTasks]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -140,7 +141,8 @@ export const createTask = async (req, res) => {
     });
 
     res.status(201).json(task);
-  } catch {
+  } catch (err) {
+    console.error("[createTask]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -204,7 +206,8 @@ export const updateTask = async (req, res) => {
     });
 
     res.json(task);
-  } catch {
+  } catch (err) {
+    console.error("[updateTask]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -225,7 +228,8 @@ export const deleteTask = async (req, res) => {
     await prisma.task.delete({ where: { id: Number(id) } });
 
     res.json({ message: "ลบ task สำเร็จ" });
-  } catch {
+  } catch (err) {
+    console.error("[deleteTask]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -289,7 +293,8 @@ export const reorderTasks = async (req, res) => {
     );
 
     res.json({ message: "บันทึกลำดับสำเร็จ" });
-  } catch {
+  } catch (err) {
+    console.error("[reorderTasks]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -318,7 +323,8 @@ export const addSubtask = async (req, res) => {
       include: { subtasks: true },
     });
     res.status(201).json(updated);
-  } catch {
+  } catch (err) {
+    console.error("[addSubtask]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -349,7 +355,8 @@ export const toggleSubtask = async (req, res) => {
       include: { subtasks: true },
     });
     res.json(updated);
-  } catch {
+  } catch (err) {
+    console.error("[toggleSubtask]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -377,7 +384,8 @@ export const deleteSubtask = async (req, res) => {
       include: { subtasks: true },
     });
     res.json(updated);
-  } catch {
+  } catch (err) {
+    console.error("[deleteSubtask]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -400,7 +408,8 @@ export const getSummary = async (req, res) => {
     ]);
 
     res.json({ total, done, pending: total - done, overdue });
-  } catch {
+  } catch (err) {
+    console.error("[getSummary]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
@@ -415,7 +424,8 @@ export const getCategories = async (req, res) => {
       orderBy: { category: "asc" },
     });
     res.json(tasks.map((t) => t.category));
-  } catch {
+  } catch (err) {
+    console.error("[getCategories]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };

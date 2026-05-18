@@ -49,6 +49,8 @@ model Subtask {
   done   Boolean @default(false)
   taskId Int
   task   Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
 }
 
 model RefreshToken {
@@ -58,4 +60,7 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id])
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }

@@ -28,8 +28,9 @@ export default function TaskList({
   const virtualizer = useVirtualizer({
     count: tasks.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 72,
-    overscan: 5,
+    estimateSize: () => 96, // estimate สูงขึ้นเพื่อลด layout shift
+    overscan: 8,
+    measureElement: (el) => el?.getBoundingClientRect().height ?? 96,
   });
 
   const sharedProps = {

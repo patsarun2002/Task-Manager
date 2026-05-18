@@ -236,14 +236,23 @@ function TaskApp({ onLogout, onLogin }) {
               tasks={tasks}
               onToggle={wrap(
                 (t) => updateTask(t.id, { status: t.status === "done" ? "pending" : "done" }),
-                "อัปเดต task สำเร็จ"
+                "อัปเดต task สำเร็จ",
+                "toggleTask"
               )}
-              onEdit={wrap((id, data) => updateTask(id, data), "แก้ไข task สำเร็จ")}
-              onDelete={wrap(deleteTask, "ลบ task สำเร็จ")}
-              onAddSubtask={wrap((taskId, data) => addSubtask(taskId, data))}
-              onToggleSubtask={wrap((taskId, subId) => toggleSubtask(taskId, subId))}
-              onDeleteSubtask={wrap((taskId, subId) => deleteSubtask(taskId, subId))}
-              onReorder={wrap(reorderTasks)}
+              onEdit={wrap((id, data) => updateTask(id, data), "แก้ไข task สำเร็จ", "editTask")}
+              onDelete={wrap(deleteTask, "ลบ task สำเร็จ", "deleteTask")}
+              onAddSubtask={wrap((taskId, data) => addSubtask(taskId, data), "", "addSubtask")}
+              onToggleSubtask={wrap(
+                (taskId, subId) => toggleSubtask(taskId, subId),
+                "",
+                "toggleSubtask"
+              )}
+              onDeleteSubtask={wrap(
+                (taskId, subId) => deleteSubtask(taskId, subId),
+                "",
+                "deleteSubtask"
+              )}
+              onReorder={wrap(reorderTasks, "", "reorderTasks")}
             />
             <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
           </>

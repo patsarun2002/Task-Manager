@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import "dotenv/config";
+import helmet from "helmet";
 
 import taskRoutes from "./routes/tasks.js";
 import authRoutes from "./routes/auth.js";
@@ -10,9 +11,25 @@ import { sanitizeBody } from "./middleware/sanitize.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
+const allowedOrigins =
+  process.env.ALLOWED_ORIGIN?.split(",").map((o) => o.trim()) ?? [];
 // ── Middleware ────────────────────────────────────────
-app.use(cors({ origin: process.env.ALLOWED_ORIGIN }));
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  }),
+);
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      }
+    },
+  }),
+);
 app.use(express.json());
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(sanitizeBody); // sanitize ทุก request

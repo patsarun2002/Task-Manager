@@ -29,7 +29,6 @@ const TaskItem = memo(function TaskItem({
   onToggleSubtask,
   onDeleteSubtask,
   dragListeners,
-  onHeightChange,
 }) {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
@@ -99,7 +98,6 @@ const TaskItem = memo(function TaskItem({
     const next = !expanded;
     setExpanded(next);
     setEditing(false);
-    onHeightChange?.(task.id, next);
   };
 
   const pCfg = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.medium;
