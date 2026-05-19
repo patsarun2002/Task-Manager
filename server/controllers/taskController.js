@@ -1,24 +1,22 @@
 import prisma from "../db.js";
 
+// [P2] recurringDays เป็น Int[] แล้ว ไม่ต้อง JSON.parse/stringify อีกต่อไป
 function getNextDeadline(task) {
-  // คำนวณจาก deadline เดิม (หรือ now ถ้าไม่มี deadline) ไม่ใช่วันนี้เสมอ
-  // เพื่อไม่ให้ skip รอบเมื่อ task เลยกำหนดไปนานแล้ว
   const base = task.deadline ? new Date(task.deadline) : new Date();
 
   if (task.recurringType === "daily") {
     const next = new Date(base);
     next.setDate(next.getDate() + 1);
-    // ถ้า next ยังอยู่ในอดีต (เลยกำหนดหลายวัน) ให้กระโดดมาถึงวันพรุ่งนี้
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     return next > new Date() ? next : tomorrow;
   }
 
   if (task.recurringType === "weekly") {
-    const days = JSON.parse(task.recurringDays || "[]").sort((a, b) => a - b);
+    // [P2] recurringDays เป็น Int[] แล้ว ไม่ต้อง parse
+    const days = [...(task.recurringDays ?? [])].sort((a, b) => a - b);
     if (!days.length) return task.deadline;
 
-    // หา occurrence ถัดไปนับจาก base date
     const baseDay = base.getDay();
     let nextDay = days.find((d) => d > baseDay);
     if (nextDay === undefined) nextDay = days[0];
@@ -26,7 +24,6 @@ function getNextDeadline(task) {
     const next = new Date(base);
     next.setDate(next.getDate() + diff);
 
-    // ถ้า next ยังอยู่ในอดีต ให้วนหา occurrence ถัดไปจากวันนี้แทน
     if (next <= new Date()) {
       const now = new Date();
       const todayDay = now.getDay();
@@ -69,7 +66,6 @@ export const getTasks = async (req, res) => {
     const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
     const skip = (safePage - 1) * safeLimit;
 
-    // เมื่อ sort=date ใช้ deadline, ถ้าไม่ได้ sort ใช้ order ที่ผู้ใช้ drag ไว้
     const orderBy =
       sort === "date"
         ? { deadline: "asc" }
@@ -116,7 +112,6 @@ export const createTask = async (req, res) => {
       return res.status(400).json({ error: "กรุณากรอกชื่อ task" });
     }
 
-    // หา order สูงสุดของ user แล้ว +1 เพื่อให้ task ใหม่อยู่ด้านบน
     const maxOrder = await prisma.task.aggregate({
       where: { userId },
       _max: { order: true },
@@ -133,7 +128,8 @@ export const createTask = async (req, res) => {
         deadline: deadline ? new Date(deadline) : null,
         deadlineTime: deadlineTime || null,
         recurringType: recurring?.type || null,
-        recurringDays: recurring?.days ? JSON.stringify(recurring.days) : null,
+        // [P2] เก็บเป็น Int[] โดยตรง ไม่ต้อง JSON.stringify
+        recurringDays: recurring?.days ?? [],
         order: nextOrder,
         userId,
       },
@@ -168,7 +164,6 @@ export const updateTask = async (req, res) => {
       note,
       recurring,
     } = req.body;
-
     const updateData = {};
 
     if (title !== undefined) {
@@ -185,9 +180,8 @@ export const updateTask = async (req, res) => {
     if (note !== undefined) updateData.note = note.trim();
     if (recurring !== undefined) {
       updateData.recurringType = recurring?.type || null;
-      updateData.recurringDays = recurring?.days
-        ? JSON.stringify(recurring.days)
-        : null;
+      // [P2] Int[] โดยตรง
+      updateData.recurringDays = recurring?.days ?? [];
     }
     if (status !== undefined) {
       if (status === "done" && existing.recurringType) {
@@ -223,9 +217,11 @@ export const deleteTask = async (req, res) => {
     });
     if (!existing) return res.status(404).json({ error: "ไม่พบ task" });
 
-    await prisma.subtask.deleteMany({ where: { taskId: Number(id) } });
-
-    await prisma.task.delete({ where: { id: Number(id) } });
+    // [FIX] ลบ subtasks ก่อนลบ task เพื่อให้ test ผ่าน
+    await prisma.$transaction([
+      prisma.subtask.deleteMany({ where: { taskId: Number(id) } }),
+      prisma.task.delete({ where: { id: Number(id) } }),
+    ]);
 
     res.json({ message: "ลบ task สำเร็จ" });
   } catch (err) {
@@ -236,7 +232,7 @@ export const deleteTask = async (req, res) => {
 
 const REORDER_LIMIT = 500;
 
-// PATCH /api/tasks/reorder — รับ [{ id, order }, ...] แล้วอัปเดตทีเดียว
+// PATCH /api/tasks/reorder
 export const reorderTasks = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -245,14 +241,12 @@ export const reorderTasks = async (req, res) => {
     if (!Array.isArray(tasks) || tasks.length === 0) {
       return res.status(400).json({ error: "tasks ต้องเป็น array ที่ไม่ว่าง" });
     }
-
     if (tasks.length > REORDER_LIMIT) {
       return res
         .status(400)
         .json({ error: `ส่งได้สูงสุด ${REORDER_LIMIT} รายการต่อครั้ง` });
     }
 
-    // ตรวจสอบ input — id และ order ต้องเป็นตัวเลขบวก
     const parsed = tasks.map((t) => ({
       id: Number(t.id),
       order: Number(t.order),
@@ -271,7 +265,6 @@ export const reorderTasks = async (req, res) => {
         .json({ error: "id และ order ต้องเป็นตัวเลขที่ถูกต้อง" });
     }
 
-    // ตรวจว่า task ทุกตัวเป็นของ user นี้จริง
     const ids = parsed.map((t) => t.id);
     const owned = await prisma.task.findMany({
       where: { id: { in: ids }, userId },
@@ -281,13 +274,9 @@ export const reorderTasks = async (req, res) => {
       return res.status(403).json({ error: "ไม่มีสิทธิ์แก้ไข task บางรายการ" });
     }
 
-    // bulk UPDATE ด้วย CASE — 1 round-trip แทน N queries
     await prisma.$transaction(
       parsed.map(({ id, order }) =>
-        prisma.task.update({
-          where: { id },
-          data: { order },
-        }),
+        prisma.task.update({ where: { id }, data: { order } }),
       ),
       { timeout: 10000 },
     );
@@ -314,15 +303,12 @@ export const addSubtask = async (req, res) => {
     });
     if (!task) return res.status(404).json({ error: "ไม่พบ task" });
 
-    await prisma.subtask.create({
+    // [P3] return เฉพาะ subtask ที่สร้างใหม่ ไม่ return task ทั้งก้อน
+    const subtask = await prisma.subtask.create({
       data: { title: title.trim(), done: false, taskId: Number(id) },
     });
 
-    const updated = await prisma.task.findUnique({
-      where: { id: Number(id) },
-      include: { subtasks: true },
-    });
-    res.status(201).json(updated);
+    res.status(201).json(subtask);
   } catch (err) {
     console.error("[addSubtask]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
@@ -345,15 +331,12 @@ export const toggleSubtask = async (req, res) => {
     });
     if (!sub) return res.status(404).json({ error: "ไม่พบ subtask" });
 
-    await prisma.subtask.update({
+    // [P3] return เฉพาะ subtask ที่เปลี่ยน
+    const updated = await prisma.subtask.update({
       where: { id: Number(subId) },
       data: { done: !sub.done },
     });
 
-    const updated = await prisma.task.findUnique({
-      where: { id: Number(id) },
-      include: { subtasks: true },
-    });
     res.json(updated);
   } catch (err) {
     console.error("[toggleSubtask]", err);
@@ -379,33 +362,35 @@ export const deleteSubtask = async (req, res) => {
 
     await prisma.subtask.delete({ where: { id: Number(subId) } });
 
-    const updated = await prisma.task.findUnique({
-      where: { id: Number(id) },
-      include: { subtasks: true },
-    });
-    res.json(updated);
+    // [P3] return แค่ id ที่ลบไป
+    res.json({ id: Number(subId) });
   } catch (err) {
     console.error("[deleteSubtask]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
   }
 };
 
+// GET /api/tasks/summary
 export const getSummary = async (req, res) => {
   try {
     const userId = req.user.id;
     const now = new Date();
 
-    const [total, done, overdue] = await Promise.all([
+    const [total, done, overdueRaw] = await Promise.all([
       prisma.task.count({ where: { userId } }),
       prisma.task.count({ where: { userId, status: "done" } }),
-      prisma.task.count({
-        where: {
-          userId,
-          status: "pending",
-          deadline: { lt: now },
-        },
+      prisma.task.findMany({
+        where: { userId, status: "pending", deadline: { lte: now } },
+        select: { deadline: true, deadlineTime: true },
       }),
     ]);
+
+    const overdue = overdueRaw.filter((t) => {
+      const dt = new Date(
+        `${t.deadline.toISOString().slice(0, 10)}T${t.deadlineTime || "23:59:59"}`,
+      );
+      return dt < now;
+    }).length;
 
     res.json({ total, done, pending: total - done, overdue });
   } catch (err) {
@@ -414,6 +399,7 @@ export const getSummary = async (req, res) => {
   }
 };
 
+// GET /api/tasks/categories
 export const getCategories = async (req, res) => {
   try {
     const userId = req.user.id;

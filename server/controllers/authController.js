@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import prisma from "../db.js";
 
 const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS) || 10;
@@ -11,17 +12,31 @@ function generateAccessToken(userId) {
   });
 }
 
-async function cleanupExpiredTokens() {
-  await prisma.refreshToken.deleteMany({
-    where: { expiresAt: { lt: new Date() } },
-  });
-}
-
 function generateRefreshToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
   });
 }
+
+// [P1-Security] hash token ด้วย SHA-256 ก่อน store/compare
+// ทำให้แม้ DB รั่ว ก็ไม่สามารถนำ token ไป reuse ได้ทันที
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+// ── cookie options ────────────────────────────────────
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
+
+const COOKIE_CLEAR_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
+};
 
 // ── register ──────────────────────────────────────────
 export async function register(req, res) {
@@ -75,23 +90,20 @@ export async function login(req, res) {
       return res.status(401).json({ error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
     }
 
-    const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken(user.id);
+    const accessToken = generateAccessToken(user.id);
 
-    // เก็บ refresh token ใน database
+    // [P1-Security] เก็บ hash แทน plain token
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        tokenHash: hashToken(refreshToken),
         userId: user.id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
 
-    cleanupExpiredTokens().catch((err) =>
-      console.error("[cleanupExpiredTokens]", err),
-    );
-
-    res.json({ accessToken, refreshToken });
+    res.cookie("refreshToken", refreshToken, COOKIE_OPTIONS);
+    res.json({ accessToken });
   } catch (err) {
     console.error("[login]", err);
     res.status(500).json({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" });
@@ -101,39 +113,59 @@ export async function login(req, res) {
 // ── refresh ───────────────────────────────────────────
 export async function refresh(req, res) {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
       return res.status(401).json({ error: "ไม่พบ refresh token" });
     }
 
-    // ตรวจสอบ token ใน database
-    const stored = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
-    });
-    if (!stored || stored.expiresAt < new Date()) {
-      return res
-        .status(403)
-        .json({ error: "refresh token ไม่ถูกต้องหรือหมดอายุแล้ว" });
+    // verify ก่อน แล้วค่อย touch DB
+    let payload;
+    try {
+      payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    } catch {
+      res.clearCookie("refreshToken", COOKIE_CLEAR_OPTIONS);
+      return res.status(403).json({ error: "refresh token ไม่ถูกต้อง" });
     }
 
-    // verify signature
-    const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-
-    await prisma.refreshToken.delete({ where: { token: refreshToken } });
-
-    const newRefreshToken = generateRefreshToken(payload.userId);
-    await prisma.refreshToken.create({
-      data: {
-        token: newRefreshToken,
-        userId: payload.userId,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
+    // [P1-Security] lookup ด้วย hash
+    const tokenHash = hashToken(refreshToken);
+    const stored = await prisma.refreshToken.findUnique({
+      where: { tokenHash },
     });
 
+    if (!stored) {
+      // token verify ผ่านแต่ไม่อยู่ใน DB → สงสัย reuse attack → revoke ทุก session
+      await prisma.refreshToken.deleteMany({
+        where: { userId: payload.userId },
+      });
+      res.clearCookie("refreshToken", COOKIE_CLEAR_OPTIONS);
+      return res.status(403).json({ error: "refresh token ไม่ถูกต้อง" });
+    }
+
+    if (stored.expiresAt < new Date()) {
+      res.clearCookie("refreshToken", COOKIE_CLEAR_OPTIONS);
+      return res.status(403).json({ error: "refresh token หมดอายุแล้ว" });
+    }
+
+    // rotate: delete + create แบบ atomic
+    const newRefreshToken = generateRefreshToken(payload.userId);
+    await prisma.$transaction([
+      prisma.refreshToken.delete({ where: { tokenHash } }),
+      prisma.refreshToken.create({
+        data: {
+          tokenHash: hashToken(newRefreshToken),
+          userId: payload.userId,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      }),
+    ]);
+
     const accessToken = generateAccessToken(payload.userId);
-    res.json({ accessToken, refreshToken: newRefreshToken });
+    res.cookie("refreshToken", newRefreshToken, COOKIE_OPTIONS);
+    res.json({ accessToken });
   } catch (err) {
     console.error("[refresh]", err);
+    res.clearCookie("refreshToken", COOKIE_CLEAR_OPTIONS);
     res.status(403).json({ error: "refresh token ไม่ถูกต้อง" });
   }
 }
@@ -141,10 +173,14 @@ export async function refresh(req, res) {
 // ── logout ────────────────────────────────────────────
 export async function logout(req, res) {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies?.refreshToken;
     if (refreshToken) {
-      await prisma.refreshToken.deleteMany({ where: { token: refreshToken } });
+      // [P1-Security] lookup/delete ด้วย hash
+      await prisma.refreshToken.deleteMany({
+        where: { tokenHash: hashToken(refreshToken) },
+      });
     }
+    res.clearCookie("refreshToken", COOKIE_CLEAR_OPTIONS);
     res.json({ message: "ออกจากระบบสำเร็จ" });
   } catch (err) {
     console.error("[logout]", err);

@@ -126,7 +126,7 @@ function TaskApp({ onLogout, onLogin }) {
       <Toaster position="bottom-right" richColors closeButton />
 
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 dark:bg-zinc-900/80 backdrop-blur border-b border-zinc-200 dark:border-zinc-700">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-zinc-800/80 backdrop-blur border-b border-zinc-200 dark:border-zinc-700">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <svg
@@ -234,24 +234,35 @@ function TaskApp({ onLogout, onLogin }) {
           <>
             <TaskList
               tasks={tasks}
-              onToggle={wrap(
-                (t) => updateTask(t.id, { status: t.status === "done" ? "pending" : "done" }),
-                "อัปเดต task สำเร็จ",
-                "toggleTask"
-              )}
-              onEdit={wrap((id, data) => updateTask(id, data), "แก้ไข task สำเร็จ", "editTask")}
-              onDelete={wrap(deleteTask, "ลบ task สำเร็จ", "deleteTask")}
-              onAddSubtask={wrap((taskId, data) => addSubtask(taskId, data), "", "addSubtask")}
-              onToggleSubtask={wrap(
-                (taskId, subId) => toggleSubtask(taskId, subId),
-                "",
-                "toggleSubtask"
-              )}
-              onDeleteSubtask={wrap(
-                (taskId, subId) => deleteSubtask(taskId, subId),
-                "",
-                "deleteSubtask"
-              )}
+              // [P2-Bug] pass handlers โดยตรง — wrap ถูกเรียกใน handler พร้อม key per-id
+              // เพื่อไม่ให้ task A block task B (key collision)
+              onToggle={(t) =>
+                wrap(
+                  () => updateTask(t.id, { status: t.status === "done" ? "pending" : "done" }),
+                  "อัปเดต task สำเร็จ",
+                  `toggleTask-${t.id}`
+                )()
+              }
+              onEdit={(id, data) =>
+                wrap(() => updateTask(id, data), "แก้ไข task สำเร็จ", `editTask-${id}`)()
+              }
+              onNote={(id, note) =>
+                wrap(
+                  () => updateTask(id, { note }),
+                  "",
+                  `noteTask-${id}` // [P2-Bug] note ใช้ key แยกจาก editTask ไม่ชนกัน
+                )()
+              }
+              onDelete={(id) => wrap(() => deleteTask(id), "ลบ task สำเร็จ", `deleteTask-${id}`)()}
+              onAddSubtask={(taskId, data) =>
+                wrap(() => addSubtask(taskId, data), "", `addSubtask-${taskId}`)()
+              }
+              onToggleSubtask={(taskId, subId) =>
+                wrap(() => toggleSubtask(taskId, subId), "", `toggleSubtask-${subId}`)()
+              }
+              onDeleteSubtask={(taskId, subId) =>
+                wrap(() => deleteSubtask(taskId, subId), "", `deleteSubtask-${subId}`)()
+              }
               onReorder={wrap(reorderTasks, "", "reorderTasks")}
             />
             <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />

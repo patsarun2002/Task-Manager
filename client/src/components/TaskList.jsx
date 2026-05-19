@@ -3,11 +3,13 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import SortableTaskItem from "./SortableTaskItem";
+import TaskItem from "./TaskItem";
 
 export default function TaskList({
   tasks,
   onToggle,
   onEdit,
+  onNote, // [P2-Bug] pass ต่อให้ TaskItem
   onDelete,
   onAddSubtask,
   onToggleSubtask,
@@ -36,6 +38,7 @@ export default function TaskList({
   const sharedProps = {
     onToggle,
     onEdit,
+    onNote,
     onDelete,
     onAddSubtask,
     onToggleSubtask,
@@ -66,25 +69,26 @@ export default function TaskList({
     );
   }
 
-  // > 30 tasks: virtualize
+  // [P2-Bug] > 30 tasks: virtualize — DnD ถูก disable เพราะ drag ข้าม virtual
+  // boundary ไม่ได้ (DOM element ที่ scroll ออกไปถูก unmount)
+  // TaskItem ใน virtual mode render ปกติ (ไม่ใช่ SortableTaskItem)
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        <div ref={parentRef} className="overflow-y-auto" style={{ height: "70vh" }}>
-          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-            {virtualizer.getVirtualItems().map((virtualRow) => (
-              <div
-                key={virtualRow.key}
-                style={{ position: "absolute", top: virtualRow.start, width: "100%" }}
-                ref={virtualizer.measureElement}
-                data-index={virtualRow.index}
-              >
-                <SortableTaskItem task={tasks[virtualRow.index]} {...sharedProps} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </SortableContext>
-    </DndContext>
+    <div ref={parentRef} className="overflow-y-auto" style={{ height: "70vh" }}>
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const task = tasks[virtualRow.index];
+          return (
+            <div
+              key={virtualRow.key}
+              style={{ position: "absolute", top: virtualRow.start, width: "100%" }}
+              ref={virtualizer.measureElement}
+              data-index={virtualRow.index}
+            >
+              <TaskItem task={task} {...sharedProps} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

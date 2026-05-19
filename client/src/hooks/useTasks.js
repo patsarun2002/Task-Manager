@@ -25,11 +25,19 @@ export function useDebounce(value, delay = 400) {
 export function useTasks(filters) {
   const { enabled = true, ...queryParams } = filters;
   const qc = useQueryClient();
-  const invalidate = () =>
+
+  // [P3] แยก invalidate ตาม mutation type — ลด refetch ที่ไม่จำเป็น
+  const invalidateTasks = () => qc.invalidateQueries({ queryKey: ["tasks"] });
+  const invalidateAll = () =>
     Promise.all([
       qc.invalidateQueries({ queryKey: ["tasks"] }),
       qc.invalidateQueries({ queryKey: ["summary"] }),
       qc.invalidateQueries({ queryKey: ["categories"] }),
+    ]);
+  const invalidateTasksAndSummary = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ["tasks"] }),
+      qc.invalidateQueries({ queryKey: ["summary"] }),
     ]);
 
   const { data, isLoading, error } = useQuery({
@@ -49,18 +57,14 @@ export function useTasks(filters) {
       const prev = qc.getQueryData(["tasks", queryParams]);
       qc.setQueryData(["tasks", queryParams], (old) => {
         const list = old?.tasks ?? old ?? [];
-        const fake = {
-          id: "temp-" + Date.now(),
-          ...newTask,
-          status: "pending",
-          subtasks: [],
-        };
+        const fake = { id: "temp-" + Date.now(), ...newTask, status: "pending", subtasks: [] };
         return old?.tasks ? { ...old, tasks: [fake, ...list] } : [fake, ...list];
       });
       return { prev };
     },
     onError: (_err, _vars, ctx) => qc.setQueryData(["tasks", queryParams], ctx.prev),
-    onSettled: invalidate,
+    // create อาจเปลี่ยน summary + categories
+    onSettled: invalidateAll,
   });
 
   const update = useMutation({
@@ -76,7 +80,8 @@ export function useTasks(filters) {
       return { prev };
     },
     onError: (_err, _vars, ctx) => qc.setQueryData(["tasks", queryParams], ctx.prev),
-    onSettled: invalidate,
+    // update อาจเปลี่ยน status (summary) หรือ category
+    onSettled: invalidateAll,
   });
 
   const remove = useMutation({
@@ -92,41 +97,65 @@ export function useTasks(filters) {
       return { prev };
     },
     onError: (_err, _vars, ctx) => qc.setQueryData(["tasks", queryParams], ctx.prev),
-    onSettled: invalidate,
+    // delete เปลี่ยน summary แต่ไม่เปลี่ยน categories
+    onSettled: invalidateTasksAndSummary,
   });
 
   const reorder = useMutation({
     mutationFn: (orderedTasks) => {
-      // ส่ง [{ id, order }] ไป API
       const payload = orderedTasks.map((t, i) => ({ id: t.id, order: i }));
       return reorderTasks(payload);
     },
     onMutate: async (orderedTasks) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
       const prev = qc.getQueryData(["tasks", queryParams]);
-      // optimistic: เรียงตาม array ที่รับมาทันที
       qc.setQueryData(["tasks", queryParams], (old) =>
         old?.tasks ? { ...old, tasks: orderedTasks } : orderedTasks
       );
       return { prev };
     },
     onError: (_err, _vars, ctx) => qc.setQueryData(["tasks", queryParams], ctx.prev),
-    onSettled: invalidate,
+    // [P3] reorder ไม่เปลี่ยน summary หรือ categories — invalidate เฉพาะ tasks
+    onSettled: invalidateTasks,
   });
+
+  // [P3] subtask mutations: server return เฉพาะ subtask ที่เปลี่ยน
+  // → update cache ใน-place แทน invalidate tasks ทั้งก้อน
+  const patchSubtaskInCache = (taskId, patchFn) => {
+    qc.setQueryData(["tasks", queryParams], (old) => {
+      if (!old) return old;
+      const list = old?.tasks ?? old ?? [];
+      const updated = list.map((t) =>
+        t.id === taskId ? { ...t, subtasks: patchFn(t.subtasks ?? []) } : t
+      );
+      return old?.tasks ? { ...old, tasks: updated } : updated;
+    });
+  };
 
   const addSub = useMutation({
     mutationFn: ({ taskId, data }) => addSubtask(taskId, data),
-    onSettled: invalidate,
+    onSuccess: (newSubtask, { taskId }) => {
+      patchSubtaskInCache(taskId, (subs) => [...subs, newSubtask.data ?? newSubtask]);
+    },
+    // subtask ไม่กระทบ summary/categories
+    onSettled: invalidateTasks,
   });
 
   const toggleSub = useMutation({
     mutationFn: ({ taskId, subId }) => toggleSubtask(taskId, subId),
-    onSettled: invalidate,
+    onSuccess: (updated, { taskId }) => {
+      const sub = updated.data ?? updated;
+      patchSubtaskInCache(taskId, (subs) => subs.map((s) => (s.id === sub.id ? sub : s)));
+    },
+    onSettled: invalidateTasks,
   });
 
   const deleteSub = useMutation({
     mutationFn: ({ taskId, subId }) => deleteSubtask(taskId, subId),
-    onSettled: invalidate,
+    onSuccess: (_res, { taskId, subId }) => {
+      patchSubtaskInCache(taskId, (subs) => subs.filter((s) => s.id !== subId));
+    },
+    onSettled: invalidateTasks,
   });
 
   return {

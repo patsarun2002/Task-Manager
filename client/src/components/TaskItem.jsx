@@ -24,6 +24,7 @@ const TaskItem = memo(function TaskItem({
   task,
   onToggle,
   onEdit,
+  onNote, // [P2-Bug] แยก handler สำหรับ note onBlur ออกจาก onEdit
   onDelete,
   onAddSubtask,
   onToggleSubtask,
@@ -38,7 +39,7 @@ const TaskItem = memo(function TaskItem({
   const [editCategory, setEditCategory] = useState(task.category || "");
   const [editRecurring, setEditRecurring] = useState(task.recurringType || "none");
   const [editRecurringDays, setEditRecurringDays] = useState(
-    task.recurringDays ? JSON.parse(task.recurringDays) : []
+    task.recurringDays ?? [] // [P2] recurringDays เป็น Int[] แล้ว ไม่ต้อง parse
   );
   const [expanded, setExpanded] = useState(false);
   const [editNote, setEditNote] = useState(task.note || "");
@@ -52,7 +53,7 @@ const TaskItem = memo(function TaskItem({
     setEditPriority(task.priority || "medium");
     setEditCategory(task.category || "");
     setEditRecurring(task.recurringType || "none");
-    setEditRecurringDays(task.recurringDays ? JSON.parse(task.recurringDays) : []);
+    setEditRecurringDays(task.recurringDays ?? []); // [P2] Int[] โดยตรง
     setEditNote(task.note || "");
   }, [task, editing]);
 
@@ -263,7 +264,8 @@ const TaskItem = memo(function TaskItem({
             value={editNote}
             onChange={(e) => setEditNote(e.target.value)}
             onBlur={() => {
-              if (editNote !== task.note) onEdit(task.id, { note: editNote });
+              // [P2-Bug] ใช้ onNote แทน onEdit เพื่อไม่ให้ชน editTask key
+              if (editNote !== task.note) onNote(task.id, editNote);
             }}
             rows={2}
             className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition mb-2 text-zinc-600 dark:text-zinc-300 placeholder:text-zinc-300 dark:placeholder:text-zinc-600"

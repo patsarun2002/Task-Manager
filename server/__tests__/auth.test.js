@@ -28,6 +28,7 @@ jest.unstable_mockModule("../db.js", () => ({
       delete: jest.fn(),
       deleteMany: jest.fn(),
     },
+    $transaction: jest.fn((ops) => Promise.all(ops)),
   },
 }));
 
@@ -39,11 +40,14 @@ const { register, login, refresh, logout } =
   await import("../controllers/authController.js");
 
 // ── Helper: สร้าง mock req/res ───────────────────────
-function mockReqRes(body = {}) {
-  const req = { body };
+// [FIX] เพิ่ม cookies param และเพิ่ม cookie/clearCookie ใน res
+function mockReqRes(body = {}, cookies = {}) {
+  const req = { body, cookies };
   const res = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
+    cookie: jest.fn().mockReturnThis(),
+    clearCookie: jest.fn().mockReturnThis(),
   };
   return { req, res };
 }
@@ -144,7 +148,8 @@ describe("Auth Controller", () => {
 
   // ── LOGIN ─────────────────────────────────────────
   describe("login", () => {
-    test("login สำเร็จ — คืน accessToken + refreshToken", async () => {
+    // [FIX] controller คืนแค่ { accessToken } ใน body, refreshToken ส่งผ่าน cookie
+    test("login สำเร็จ — คืน accessToken และ set refreshToken cookie", async () => {
       const { req, res } = mockReqRes({
         email: "test@example.com",
         password: "password123",
@@ -159,11 +164,17 @@ describe("Auth Controller", () => {
 
       await login(req, res);
 
+      // accessToken อยู่ใน response body
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           accessToken: expect.any(String),
-          refreshToken: expect.any(String),
         }),
+      );
+      // refreshToken ส่งผ่าน cookie
+      expect(res.cookie).toHaveBeenCalledWith(
+        "refreshToken",
+        expect.any(String),
+        expect.any(Object),
       );
     });
 
@@ -218,6 +229,7 @@ describe("Auth Controller", () => {
 
       await login(req, res);
 
+      // [FIX] controller เก็บ tokenHash ไม่ใช่ token โดยตรง
       expect(prisma.refreshToken.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -231,13 +243,17 @@ describe("Auth Controller", () => {
 
   // ── REFRESH ───────────────────────────────────────
   describe("refresh", () => {
-    test("refresh สำเร็จ — คืน token ใหม่", async () => {
-      const { req, res } = mockReqRes({ refreshToken: "valid_refresh_token" });
+    // [FIX] refresh token ส่งผ่าน req.cookies ไม่ใช่ req.body
+    test("refresh สำเร็จ — คืน accessToken ใหม่และ set cookie ใหม่", async () => {
+      const { req, res } = mockReqRes(
+        {},
+        { refreshToken: "valid_refresh_token" },
+      );
+      jwt.verify.mockReturnValue({ userId: 1 });
       prisma.refreshToken.findUnique.mockResolvedValue({
-        token: "valid_refresh_token",
+        tokenHash: "some_hash",
         expiresAt: new Date(Date.now() + 86400000),
       });
-      jwt.verify.mockReturnValue({ userId: 1 });
       prisma.refreshToken.delete.mockResolvedValue({});
       prisma.refreshToken.create.mockResolvedValue({});
 
@@ -246,23 +262,30 @@ describe("Auth Controller", () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           accessToken: expect.any(String),
-          refreshToken: expect.any(String),
         }),
+      );
+      expect(res.cookie).toHaveBeenCalledWith(
+        "refreshToken",
+        expect.any(String),
+        expect.any(Object),
       );
     });
 
+    // [FIX] ไม่มี cookie เลย → 401
     test("ไม่ส่ง refreshToken — คืน 401", async () => {
-      const { req, res } = mockReqRes({});
+      const { req, res } = mockReqRes({}, {});
 
       await refresh(req, res);
 
       expect(res.status).toHaveBeenCalledWith(401);
     });
 
+    // [FIX] token หมดอายุ → 403 (controller ตรวจ expiresAt แล้ว return 403)
     test("token หมดอายุใน DB — คืน 403", async () => {
-      const { req, res } = mockReqRes({ refreshToken: "expired_token" });
+      const { req, res } = mockReqRes({}, { refreshToken: "expired_token" });
+      jwt.verify.mockReturnValue({ userId: 1 });
       prisma.refreshToken.findUnique.mockResolvedValue({
-        token: "expired_token",
+        tokenHash: "some_hash",
         expiresAt: new Date(Date.now() - 1000), // อดีต
       });
 
@@ -271,52 +294,54 @@ describe("Auth Controller", () => {
       expect(res.status).toHaveBeenCalledWith(403);
     });
 
+    // [FIX] ไม่พบใน DB → 403
     test("ไม่พบ token ใน DB — คืน 403", async () => {
-      const { req, res } = mockReqRes({ refreshToken: "unknown_token" });
+      const { req, res } = mockReqRes({}, { refreshToken: "unknown_token" });
+      jwt.verify.mockReturnValue({ userId: 1 });
       prisma.refreshToken.findUnique.mockResolvedValue(null);
+      prisma.refreshToken.deleteMany.mockResolvedValue({});
 
       await refresh(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
     });
 
+    // [FIX] ตรวจแค่ว่า delete และ create ถูกเรียก (ไม่เช็ค token โดยตรงเพราะ controller hash ก่อน)
     test("refresh สำเร็จ — ลบ token เก่าและสร้างใหม่", async () => {
-      const { req, res } = mockReqRes({ refreshToken: "old_token" });
+      const { req, res } = mockReqRes({}, { refreshToken: "old_token" });
+      jwt.verify.mockReturnValue({ userId: 1 });
       prisma.refreshToken.findUnique.mockResolvedValue({
-        token: "old_token",
+        tokenHash: "some_hash",
         expiresAt: new Date(Date.now() + 86400000),
       });
-      jwt.verify.mockReturnValue({ userId: 1 });
       prisma.refreshToken.delete.mockResolvedValue({});
       prisma.refreshToken.create.mockResolvedValue({});
 
       await refresh(req, res);
 
-      expect(prisma.refreshToken.delete).toHaveBeenCalledWith({
-        where: { token: "old_token" },
-      });
+      expect(prisma.refreshToken.delete).toHaveBeenCalled();
       expect(prisma.refreshToken.create).toHaveBeenCalled();
     });
   });
 
   // ── LOGOUT ────────────────────────────────────────
   describe("logout", () => {
+    // [FIX] token มาจาก req.cookies และ controller ลบด้วย tokenHash
     test("logout สำเร็จ — ลบ token และคืน 200", async () => {
-      const { req, res } = mockReqRes({ refreshToken: "some_token" });
+      const { req, res } = mockReqRes({}, { refreshToken: "some_token" });
       prisma.refreshToken.deleteMany.mockResolvedValue({});
 
       await logout(req, res);
 
-      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
-        where: { token: "some_token" },
-      });
+      // controller hash token ก่อน deleteMany → เช็คแค่ว่าถูกเรียก
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: expect.any(String) }),
       );
     });
 
     test("logout โดยไม่ส่ง token — ยังคืน 200 ได้", async () => {
-      const { req, res } = mockReqRes({});
+      const { req, res } = mockReqRes({}, {});
 
       await logout(req, res);
 

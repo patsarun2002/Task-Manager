@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL });
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  withCredentials: true, // ส่ง HttpOnly cookie ไปด้วยทุก request
+});
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
@@ -12,19 +15,25 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config;
-    if (err.response?.status === 401 && !original._retry && !original.url?.includes("/auth/")) {
+
+    // BUG #3 FIX: original.url อาจเป็น undefined ใน axios บางเวอร์ชัน
+    // และต้องเช็ค baseURL ด้วยเพื่อป้องกัน infinite loop กรณี /auth/refresh ตอบ 401
+    const isAuthRoute = original.url?.includes("/auth/") || original.baseURL?.includes("/auth/");
+
+    if (err.response?.status === 401 && !original._retry && !isAuthRoute) {
       original._retry = true;
       try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        // cookie ส่งอัตโนมัติ ไม่ต้องส่ง refreshToken ใน body
+        const { data } = await axios.post(
+          `${import.meta.env.VITE_API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
         localStorage.setItem("accessToken", data.accessToken);
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return api(original);
       } catch {
         localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
         window.location.href = "/";
       }
     }
@@ -36,15 +45,14 @@ api.interceptors.response.use(
 export const register = (data) => api.post("/auth/register", data);
 export const login = async (data) => {
   const res = await api.post("/auth/login", data);
+  // รับแค่ accessToken — refreshToken อยู่ใน HttpOnly cookie แล้ว
   localStorage.setItem("accessToken", res.data.accessToken);
-  localStorage.setItem("refreshToken", res.data.refreshToken);
   return res;
 };
 export const logout = async () => {
-  const refreshToken = localStorage.getItem("refreshToken");
-  await api.post("/auth/logout", { refreshToken }).catch(() => {});
+  // server จะเคลียร์ cookie ให้
+  await api.post("/auth/logout").catch(() => {});
   localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
 };
 
 // ── Tasks ─────────────────────────────────────────────
@@ -52,7 +60,6 @@ export const getTasks = (params) => api.get("/tasks", { params });
 export const createTask = (data) => api.post("/tasks", data);
 export const updateTask = (id, data) => api.put(`/tasks/${id}`, data);
 export const deleteTask = (id) => api.delete(`/tasks/${id}`);
-// รับ [{ id, order }] — ส่ง batch update ลำดับทีเดียว
 export const reorderTasks = (tasks) => api.patch("/tasks/reorder", { tasks });
 
 export const addSubtask = (taskId, data) => api.post(`/tasks/${taskId}/subtasks`, data);

@@ -11,6 +11,22 @@ datasource db {
   provider = "postgresql"
 }
 
+enum TaskStatus {
+  pending
+  done
+}
+
+enum Priority {
+  low
+  medium
+  high
+}
+
+enum RecurringType {
+  daily
+  weekly
+}
+
 model User {
   id            Int            @id @default(autoincrement())
   email         String         @unique
@@ -21,21 +37,21 @@ model User {
 }
 
 model Task {
-  id                     Int       @id @default(autoincrement())
+  id                     Int            @id @default(autoincrement())
   title                  String
-  status                 String    @default("pending")
-  priority               String    @default("medium")
-  category               String    @default("")
-  note                   String    @default("")
+  status                 TaskStatus     @default(pending)
+  priority               Priority       @default(medium)
+  category               String         @default("")
+  note                   String         @default("")
   deadline               DateTime?
   deadlineTime           String?
-  recurringType          String?
-  recurringDays          String?
+  recurringType          RecurringType?
+  recurringDays          Int[]          @default([])
   recurringLastCompleted DateTime?
-  order                  Int       @default(0)
-  createdAt              DateTime  @default(now())
+  order                  Int            @default(0)
+  createdAt              DateTime       @default(now())
   userId                 Int
-  user                   User      @relation(fields: [userId], references: [id])
+  user                   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   subtasks               Subtask[]
 
   @@index([userId, status])
@@ -55,9 +71,9 @@ model Subtask {
 
 model RefreshToken {
   id        Int      @id @default(autoincrement())
-  token     String   @unique
+  tokenHash String   @unique
   userId    Int
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
 
