@@ -212,7 +212,9 @@ const TaskItem = memo(function TaskItem({
 
         {/* Actions */}
         {!editing && (
-          <div className="task-actions flex items-center gap-1 flex-shrink-0 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+          <div
+            className={`task-actions flex items-center gap-1 flex-shrink-0 transition-opacity ${confirmDelete ? "opacity-100" : "opacity-100 sm:opacity-0 group-hover:opacity-100"}`}
+          >
             <button
               onClick={handleExpand}
               title="subtask / note"
@@ -265,7 +267,7 @@ const TaskItem = memo(function TaskItem({
             onChange={(e) => setEditNote(e.target.value)}
             onBlur={() => {
               // [P2-Bug] ใช้ onNote แทน onEdit เพื่อไม่ให้ชน editTask key
-              if (editNote !== task.note) onNote(task.id, editNote);
+              onNote(task.id, editNote);
             }}
             rows={2}
             className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition mb-2 text-zinc-600 dark:text-zinc-300 placeholder:text-zinc-300 dark:placeholder:text-zinc-600"

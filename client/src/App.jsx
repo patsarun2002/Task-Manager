@@ -4,13 +4,11 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "./store/authStore";
 import { useTasks, useDebounce } from "./hooks/useTasks";
 import { logout, getTaskSummary, getTaskCategories } from "./services/api";
-import TaskForm from "./components/TaskForm";
-import TaskList from "./components/TaskList";
-import FilterBar from "./components/FilterBar";
-import TaskSkeleton from "./components/TaskSkeleton";
-import SummaryBar from "./components/SummaryBar";
-import LoginPage from "./components/LoginPage";
-import Pagination from "./components/Pagination";
+import { TaskForm, TaskList, TaskSkeleton } from "./features/tasks";
+import FilterBar from "./shared/components/FilterBar";
+import SummaryBar from "./shared/components/SummaryBar";
+import LoginPage from "./features/auth/components/LoginPage";
+import Pagination from "./shared/components/Pagination";
 import { Button } from "@/components/ui/button";
 import "./index.css";
 

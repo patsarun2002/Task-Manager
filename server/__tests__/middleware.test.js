@@ -8,10 +8,21 @@ jest.unstable_mockModule("jsonwebtoken", () => ({
   },
 }));
 
+// ── Mock express-rate-limit ───────────────────────────
+const rateLimitMock = jest.fn((options) => ({
+  ...options,
+  middleware: true,
+}));
+jest.unstable_mockModule("express-rate-limit", () => ({
+  default: rateLimitMock,
+}));
+
 const { default: jwt } = await import("jsonwebtoken");
 const { verifyToken } = await import("../middleware/auth.js");
 const { validateTask } = await import("../middleware/validate.js");
 const { sanitizeBody } = await import("../middleware/sanitize.js");
+const { authLimiter, apiLimiter } =
+  await import("../middleware/rateLimiter.js");
 
 // ── Helper ────────────────────────────────────────────
 function mockMiddleware({ headers = {}, body = {}, method = "POST" } = {}) {
@@ -148,6 +159,17 @@ describe("Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
+    test("deadline รูปแบบถูกต้อง — เรียก next()", () => {
+      const { req, res, next } = mockMiddleware({
+        method: "PUT",
+        body: { deadline: "2024-12-31" },
+      });
+
+      validateTask(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
     test("deadlineTime รูปแบบผิด — คืน 400", () => {
       const { req, res, next } = mockMiddleware({
         method: "PUT",
@@ -212,6 +234,34 @@ describe("Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
+    test("recurring weekly days ถูกต้อง — เรียก next()", () => {
+      const { req, res, next } = mockMiddleware({
+        method: "POST",
+        body: {
+          title: "Weekly",
+          recurring: { type: "weekly", days: [0, 1, 2] },
+        },
+      });
+
+      validateTask(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    test("recurring type ไม่ถูกต้อง — คืน 400", () => {
+      const { req, res, next } = mockMiddleware({
+        method: "POST",
+        body: {
+          title: "Invalid",
+          recurring: { type: "monthly", days: [] },
+        },
+      });
+
+      validateTask(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
     test("note เกิน 500 ตัวอักษร — คืน 400", () => {
       const { req, res, next } = mockMiddleware({
         method: "PUT",
@@ -223,6 +273,17 @@ describe("Middleware", () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
+    test("note ถูกต้อง — เรียก next()", () => {
+      const { req, res, next } = mockMiddleware({
+        method: "PUT",
+        body: { note: "Valid note" },
+      });
+
+      validateTask(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
     test("category เกิน 50 ตัวอักษร — คืน 400", () => {
       const { req, res, next } = mockMiddleware({
         method: "PUT",
@@ -232,6 +293,17 @@ describe("Middleware", () => {
       validateTask(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("category ถูกต้อง — เรียก next()", () => {
+      const { req, res, next } = mockMiddleware({
+        method: "PUT",
+        body: { category: "Work" },
+      });
+
+      validateTask(req, res, next);
+
+      expect(next).toHaveBeenCalled();
     });
   });
 
@@ -283,6 +355,35 @@ describe("Middleware", () => {
       expect(next).toHaveBeenCalled();
     });
 
+    test("sanitize array of objects", () => {
+      const { req, res, next } = mockMiddleware({
+        body: {
+          items: [{ name: "clean" }, { name: "<script>bad</script>" }],
+        },
+      });
+
+      sanitizeBody(req, res, next);
+
+      expect(req.body.items[1].name).not.toContain("<script>");
+      expect(next).toHaveBeenCalled();
+    });
+
+    test("sanitize array with mixed types", () => {
+      const { req, res, next } = mockMiddleware({
+        body: {
+          mixed: ["clean", 123, true, "<script>bad</script>"],
+        },
+      });
+
+      sanitizeBody(req, res, next);
+
+      expect(req.body.mixed[0]).toBe("clean");
+      expect(req.body.mixed[1]).toBe(123);
+      expect(req.body.mixed[2]).toBe(true);
+      expect(req.body.mixed[3]).not.toContain("<script>");
+      expect(next).toHaveBeenCalled();
+    });
+
     test("body ที่ไม่ใช่ object — ผ่านไปได้เลย", () => {
       const req = { body: null };
       const res = {};
@@ -303,6 +404,50 @@ describe("Middleware", () => {
       expect(req.body.count).toBe(5);
       expect(req.body.active).toBe(true);
       expect(next).toHaveBeenCalled();
+    });
+  });
+
+  // ── Rate Limiters ───────────────────────────────────
+  // ── Rate Limiters ───────────────────────────────────
+  describe("Rate Limiters", () => {
+    test("authLimiter มีค่า windowMs ถูกต้อง", () => {
+      expect(authLimiter.windowMs).toBe(15 * 60 * 1000);
+    });
+
+    test("authLimiter มีค่า max เริ่มต้นเป็น 10", () => {
+      expect(authLimiter.max).toBe(10);
+    });
+
+    test("authLimiter มี standardHeaders เป็น true", () => {
+      expect(authLimiter.standardHeaders).toBe(true);
+    });
+
+    test("authLimiter มี legacyHeaders เป็น false", () => {
+      expect(authLimiter.legacyHeaders).toBe(false);
+    });
+
+    test("authLimiter มีข้อความ error ภาษาไทย", () => {
+      expect(authLimiter.message.error).toContain("ลองใหม่บ่อยเกินไป");
+    });
+
+    test("apiLimiter มีค่า windowMs ถูกต้อง", () => {
+      expect(apiLimiter.windowMs).toBe(15 * 60 * 1000);
+    });
+
+    test("apiLimiter มีค่า max เริ่มต้นเป็น 100", () => {
+      expect(apiLimiter.max).toBe(100);
+    });
+
+    test("apiLimiter มี standardHeaders เป็น true", () => {
+      expect(apiLimiter.standardHeaders).toBe(true);
+    });
+
+    test("apiLimiter มี legacyHeaders เป็น false", () => {
+      expect(apiLimiter.legacyHeaders).toBe(false);
+    });
+
+    test("apiLimiter มีข้อความ error ภาษาไทย", () => {
+      expect(apiLimiter.message.error).toContain("มีการเรียกใช้งานมากเกินไป");
     });
   });
 });

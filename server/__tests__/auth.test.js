@@ -1,41 +1,33 @@
 // __tests__/auth.test.js
 import { jest } from "@jest/globals";
 
-// ── Mock external modules ────────────────────────────
-jest.unstable_mockModule("bcrypt", () => ({
-  default: {
-    hash: jest.fn().mockResolvedValue("hashed_password"),
-    compare: jest.fn(),
+// ── Mock authService ─────────────────────────────────
+jest.unstable_mockModule("../services/authService.js", () => ({
+  authService: {
+    register: jest.fn(),
+    login: jest.fn(),
+    refresh: jest.fn(),
+    logout: jest.fn(),
   },
 }));
 
-jest.unstable_mockModule("jsonwebtoken", () => ({
-  default: {
-    sign: jest.fn().mockReturnValue("mock_token"),
-    verify: jest.fn(),
+// ── Mock cookie utilities ───────────────────────────
+jest.unstable_mockModule("../utils/cookie.js", () => ({
+  COOKIE_OPTIONS: {
+    httpOnly: true,
+    secure: false,
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   },
-}));
-
-jest.unstable_mockModule("../db.js", () => ({
-  default: {
-    user: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-    },
-    refreshToken: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      delete: jest.fn(),
-      deleteMany: jest.fn(),
-    },
-    $transaction: jest.fn((ops) => Promise.all(ops)),
+  COOKIE_CLEAR_OPTIONS: {
+    httpOnly: true,
+    secure: false,
+    sameSite: "lax",
   },
 }));
 
 // ── Dynamic imports (ต้องทำหลัง mock) ──────────────
-const { default: bcrypt } = await import("bcrypt");
-const { default: jwt } = await import("jsonwebtoken");
-const { default: prisma } = await import("../db.js");
+const { authService } = await import("../services/authService.js");
 const { register, login, refresh, logout } =
   await import("../controllers/authController.js");
 
@@ -67,8 +59,7 @@ describe("Auth Controller", () => {
         email: "test@example.com",
         password: "password123",
       });
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({
+      authService.register.mockResolvedValue({
         id: 1,
         email: "test@example.com",
       });
@@ -79,6 +70,10 @@ describe("Auth Controller", () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 1 }),
       );
+      expect(authService.register).toHaveBeenCalledWith(
+        "test@example.com",
+        "password123",
+      );
     });
 
     test("อีเมลรูปแบบผิด — คืน 400", async () => {
@@ -86,6 +81,10 @@ describe("Auth Controller", () => {
         email: "not-an-email",
         password: "password123",
       });
+      const error = Object.assign(new Error("รูปแบบอีเมลไม่ถูกต้อง"), {
+        status: 400,
+      });
+      authService.register.mockRejectedValue(error);
 
       await register(req, res);
 
@@ -100,6 +99,11 @@ describe("Auth Controller", () => {
         email: "test@example.com",
         password: "short",
       });
+      const error = Object.assign(
+        new Error("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"),
+        { status: 400 },
+      );
+      authService.register.mockRejectedValue(error);
 
       await register(req, res);
 
@@ -114,72 +118,100 @@ describe("Auth Controller", () => {
         email: "existing@example.com",
         password: "password123",
       });
-      prisma.user.findUnique.mockResolvedValue({ id: 1 });
+      const error = Object.assign(new Error("อีเมลนี้ถูกใช้งานแล้ว"), {
+        status: 409,
+      });
+      authService.register.mockRejectedValue(error);
 
       await register(req, res);
 
       expect(res.status).toHaveBeenCalledWith(409);
     });
 
-    test("hash password ก่อน save", async () => {
+    test("ไม่ส่ง password — คืน 400", async () => {
+      const { req, res } = mockReqRes({
+        email: "test@example.com",
+        password: "",
+      });
+      const error = Object.assign(
+        new Error("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"),
+        { status: 400 },
+      );
+      authService.register.mockRejectedValue(error);
+
+      await register(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    test("register เกิด error — คืน 500", async () => {
       const { req, res } = mockReqRes({
         email: "test@example.com",
         password: "password123",
       });
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({
-        id: 1,
-        email: "test@example.com",
-      });
+      authService.register.mockRejectedValue(new Error("Database error"));
 
       await register(req, res);
 
-      expect(bcrypt.hash).toHaveBeenCalledWith(
-        "password123",
-        expect.any(Number),
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(String) }),
       );
-      expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ password: "hashed_password" }),
-        }),
+    });
+
+    test("register เกิด error โดยไม่มี message — คืน 500", async () => {
+      const { req, res } = mockReqRes({
+        email: "test@example.com",
+        password: "password123",
+      });
+      const error = { status: 500 };
+      authService.register.mockRejectedValue(error);
+
+      await register(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" }),
       );
     });
   });
 
   // ── LOGIN ─────────────────────────────────────────
   describe("login", () => {
-    // [FIX] controller คืนแค่ { accessToken } ใน body, refreshToken ส่งผ่าน cookie
     test("login สำเร็จ — คืน accessToken และ set refreshToken cookie", async () => {
       const { req, res } = mockReqRes({
         email: "test@example.com",
         password: "password123",
       });
-      prisma.user.findUnique.mockResolvedValue({
-        id: 1,
-        email: "test@example.com",
-        password: "hashed_password",
+      authService.login.mockResolvedValue({
+        accessToken: "mock_access_token",
+        refreshToken: "mock_refresh_token",
       });
-      bcrypt.compare.mockResolvedValue(true);
-      prisma.refreshToken.create.mockResolvedValue({});
 
       await login(req, res);
 
-      // accessToken อยู่ใน response body
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          accessToken: expect.any(String),
+          accessToken: "mock_access_token",
         }),
       );
-      // refreshToken ส่งผ่าน cookie
       expect(res.cookie).toHaveBeenCalledWith(
         "refreshToken",
-        expect.any(String),
+        "mock_refresh_token",
         expect.any(Object),
+      );
+      expect(authService.login).toHaveBeenCalledWith(
+        "test@example.com",
+        "password123",
       );
     });
 
     test("ไม่ส่ง email/password — คืน 400", async () => {
       const { req, res } = mockReqRes({ email: "", password: "" });
+      const error = Object.assign(new Error("กรุณากรอกอีเมลและรหัสผ่าน"), {
+        status: 400,
+      });
+      authService.login.mockRejectedValue(error);
 
       await login(req, res);
 
@@ -191,7 +223,10 @@ describe("Auth Controller", () => {
         email: "nobody@example.com",
         password: "password123",
       });
-      prisma.user.findUnique.mockResolvedValue(null);
+      const error = Object.assign(new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง"), {
+        status: 401,
+      });
+      authService.login.mockRejectedValue(error);
 
       await login(req, res);
 
@@ -203,138 +238,167 @@ describe("Auth Controller", () => {
         email: "test@example.com",
         password: "wrongpass",
       });
-      prisma.user.findUnique.mockResolvedValue({
-        id: 1,
-        password: "hashed_password",
+      const error = Object.assign(new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง"), {
+        status: 401,
       });
-      bcrypt.compare.mockResolvedValue(false);
+      authService.login.mockRejectedValue(error);
 
       await login(req, res);
 
       expect(res.status).toHaveBeenCalledWith(401);
     });
 
-    test("login สำเร็จ — บันทึก refreshToken ใน DB", async () => {
+    test("login เกิด error — คืน 500", async () => {
       const { req, res } = mockReqRes({
         email: "test@example.com",
         password: "password123",
       });
-      prisma.user.findUnique.mockResolvedValue({
-        id: 1,
-        email: "test@example.com",
-        password: "hashed_password",
-      });
-      bcrypt.compare.mockResolvedValue(true);
-      prisma.refreshToken.create.mockResolvedValue({});
+      authService.login.mockRejectedValue(new Error("Database error"));
 
       await login(req, res);
 
-      // [FIX] controller เก็บ tokenHash ไม่ใช่ token โดยตรง
-      expect(prisma.refreshToken.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            userId: 1,
-            expiresAt: expect.any(Date),
-          }),
-        }),
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
+    });
+
+    test("login เกิด error โดยไม่มี message — คืน 500", async () => {
+      const { req, res } = mockReqRes({
+        email: "test@example.com",
+        password: "password123",
+      });
+      const error = { status: 500 };
+      authService.login.mockRejectedValue(error);
+
+      await login(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" }),
       );
     });
   });
 
   // ── REFRESH ───────────────────────────────────────
   describe("refresh", () => {
-    // [FIX] refresh token ส่งผ่าน req.cookies ไม่ใช่ req.body
     test("refresh สำเร็จ — คืน accessToken ใหม่และ set cookie ใหม่", async () => {
       const { req, res } = mockReqRes(
         {},
         { refreshToken: "valid_refresh_token" },
       );
-      jwt.verify.mockReturnValue({ userId: 1 });
-      prisma.refreshToken.findUnique.mockResolvedValue({
-        tokenHash: "some_hash",
-        expiresAt: new Date(Date.now() + 86400000),
+      authService.refresh.mockResolvedValue({
+        accessToken: "new_access_token",
+        refreshToken: "new_refresh_token",
       });
-      prisma.refreshToken.delete.mockResolvedValue({});
-      prisma.refreshToken.create.mockResolvedValue({});
 
       await refresh(req, res);
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          accessToken: expect.any(String),
+          accessToken: "new_access_token",
         }),
       );
       expect(res.cookie).toHaveBeenCalledWith(
         "refreshToken",
-        expect.any(String),
+        "new_refresh_token",
         expect.any(Object),
       );
+      expect(authService.refresh).toHaveBeenCalledWith("valid_refresh_token");
     });
 
-    // [FIX] ไม่มี cookie เลย → 401
     test("ไม่ส่ง refreshToken — คืน 401", async () => {
       const { req, res } = mockReqRes({}, {});
+      const error = Object.assign(new Error("ไม่พบ refresh token"), {
+        status: 401,
+      });
+      authService.refresh.mockRejectedValue(error);
 
       await refresh(req, res);
 
       expect(res.status).toHaveBeenCalledWith(401);
     });
 
-    // [FIX] token หมดอายุ → 403 (controller ตรวจ expiresAt แล้ว return 403)
     test("token หมดอายุใน DB — คืน 403", async () => {
       const { req, res } = mockReqRes({}, { refreshToken: "expired_token" });
-      jwt.verify.mockReturnValue({ userId: 1 });
-      prisma.refreshToken.findUnique.mockResolvedValue({
-        tokenHash: "some_hash",
-        expiresAt: new Date(Date.now() - 1000), // อดีต
+      const error = Object.assign(new Error("refresh token หมดอายุแล้ว"), {
+        status: 403,
       });
+      authService.refresh.mockRejectedValue(error);
 
       await refresh(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
     });
 
-    // [FIX] ไม่พบใน DB → 403
     test("ไม่พบ token ใน DB — คืน 403", async () => {
       const { req, res } = mockReqRes({}, { refreshToken: "unknown_token" });
-      jwt.verify.mockReturnValue({ userId: 1 });
-      prisma.refreshToken.findUnique.mockResolvedValue(null);
-      prisma.refreshToken.deleteMany.mockResolvedValue({});
+      const error = Object.assign(new Error("refresh token ไม่ถูกต้อง"), {
+        status: 403,
+      });
+      authService.refresh.mockRejectedValue(error);
 
       await refresh(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
     });
 
-    // [FIX] ตรวจแค่ว่า delete และ create ถูกเรียก (ไม่เช็ค token โดยตรงเพราะ controller hash ก่อน)
-    test("refresh สำเร็จ — ลบ token เก่าและสร้างใหม่", async () => {
-      const { req, res } = mockReqRes({}, { refreshToken: "old_token" });
-      jwt.verify.mockReturnValue({ userId: 1 });
-      prisma.refreshToken.findUnique.mockResolvedValue({
-        tokenHash: "some_hash",
-        expiresAt: new Date(Date.now() + 86400000),
+    test("JWT verify ล้มเหลว — คืน 403 และ clearCookie", async () => {
+      const { req, res } = mockReqRes({}, { refreshToken: "invalid_token" });
+      const error = Object.assign(new Error("refresh token ไม่ถูกต้อง"), {
+        status: 403,
       });
-      prisma.refreshToken.delete.mockResolvedValue({});
-      prisma.refreshToken.create.mockResolvedValue({});
+      authService.refresh.mockRejectedValue(error);
 
       await refresh(req, res);
 
-      expect(prisma.refreshToken.delete).toHaveBeenCalled();
-      expect(prisma.refreshToken.create).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        "refreshToken",
+        expect.any(Object),
+      );
+    });
+
+    test("refresh เกิด error — คืน 403 และ clearCookie", async () => {
+      const { req, res } = mockReqRes({}, { refreshToken: "valid_token" });
+      authService.refresh.mockRejectedValue(new Error("Database error"));
+
+      await refresh(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        "refreshToken",
+        expect.any(Object),
+      );
+    });
+
+    test("refresh เกิด error โดยไม่มี message — คืน 500", async () => {
+      const { req, res } = mockReqRes({}, { refreshToken: "valid_token" });
+      const error = { status: 500 };
+      authService.refresh.mockRejectedValue(error);
+
+      await refresh(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        "refreshToken",
+        expect.any(Object),
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" }),
+      );
     });
   });
 
   // ── LOGOUT ────────────────────────────────────────
   describe("logout", () => {
-    // [FIX] token มาจาก req.cookies และ controller ลบด้วย tokenHash
     test("logout สำเร็จ — ลบ token และคืน 200", async () => {
       const { req, res } = mockReqRes({}, { refreshToken: "some_token" });
-      prisma.refreshToken.deleteMany.mockResolvedValue({});
+      authService.logout.mockResolvedValue();
 
       await logout(req, res);
 
-      // controller hash token ก่อน deleteMany → เช็คแค่ว่าถูกเรียก
-      expect(prisma.refreshToken.deleteMany).toHaveBeenCalled();
+      expect(authService.logout).toHaveBeenCalledWith("some_token");
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ message: expect.any(String) }),
       );
@@ -342,11 +406,49 @@ describe("Auth Controller", () => {
 
     test("logout โดยไม่ส่ง token — ยังคืน 200 ได้", async () => {
       const { req, res } = mockReqRes({}, {});
+      authService.logout.mockResolvedValue();
 
       await logout(req, res);
 
-      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+      expect(authService.logout).toHaveBeenCalledWith(undefined);
       expect(res.json).toHaveBeenCalled();
+    });
+
+    test("logout สำเร็จ — clearCookie ถูกเรียก", async () => {
+      const { req, res } = mockReqRes({}, { refreshToken: "some_token" });
+      authService.logout.mockResolvedValue();
+
+      await logout(req, res);
+
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        "refreshToken",
+        expect.any(Object),
+      );
+    });
+
+    test("logout เกิด error — คืน 500", async () => {
+      const { req, res } = mockReqRes({}, { refreshToken: "some_token" });
+      authService.logout.mockRejectedValue(new Error("Database error"));
+
+      await logout(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
+    });
+
+    test("logout เกิด error โดยไม่มี message — คืน 500", async () => {
+      const { req, res } = mockReqRes({}, { refreshToken: "some_token" });
+      const error = { status: 500 };
+      authService.logout.mockRejectedValue(error);
+
+      await logout(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" }),
+      );
     });
   });
 });

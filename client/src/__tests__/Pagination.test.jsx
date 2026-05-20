@@ -2,7 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import Pagination from "@/components/Pagination";
+import Pagination from "@/shared/components/Pagination";
 
 const defaultProps = {
   page: 1,
@@ -101,6 +101,29 @@ describe("Pagination", () => {
   it("ไม่แสดง ... เมื่อหน้าน้อย (3 หน้า)", () => {
     render(<Pagination page={2} totalPages={3} onPageChange={vi.fn()} />);
     expect(screen.queryByText("…")).not.toBeInTheDocument();
+  });
+
+  it("แสดงหน้าสุดท้ายโดยตรงเมื่อ page + delta >= totalPages - 1", () => {
+    render(<Pagination page={3} totalPages={4} onPageChange={vi.fn()} />);
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.queryByText("…")).not.toBeInTheDocument();
+  });
+
+  it("แสดงหน้าสุดท้ายโดยตรงเมื่อ totalPages = 2", () => {
+    render(<Pagination page={1} totalPages={2} onPageChange={vi.fn()} />);
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.queryByText("…")).not.toBeInTheDocument();
+  });
+
+  it("แสดงหน้าสุดท้ายโดยตรงเมื่อ page = totalPages - 1", () => {
+    render(<Pagination page={4} totalPages={5} onPageChange={vi.fn()} />);
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.queryByText("…")).not.toBeInTheDocument();
+  });
+
+  it("ไม่แสดงหน้าสุดท้ายเมื่อ totalPages = 1", () => {
+    render(<Pagination page={1} totalPages={1} onPageChange={vi.fn()} />);
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
   });
 
   // ── Active page highlight ──────────────────────────

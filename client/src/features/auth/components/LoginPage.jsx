@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { login, register } from "../services/api";
+import { login, register } from "../../../services/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 

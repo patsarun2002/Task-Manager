@@ -2,7 +2,20 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import TaskEditForm from "@/components/TaskEditForm";
+import TaskEditForm from "@/features/tasks/components/TaskEditForm";
+
+// Mock Shadcn Select for easier testing
+vi.mock("@/components/ui/select", () => ({
+  Select: ({ value, onValueChange, children }) => (
+    <select value={value} onChange={(e) => onValueChange(e.target.value)} data-testid="select">
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }) => <>{children}</>,
+  SelectItem: ({ value, children }) => <option value={value}>{children}</option>,
+}));
 
 const defaultProps = {
   editTitle: "ชื่อเดิม",
@@ -99,6 +112,13 @@ describe("TaskEditForm", () => {
     expect(defaultProps.setEditDeadline).toHaveBeenCalledWith("2025-12-31");
   });
 
+  it("เรียก setEditDeadlineTime เมื่อเปลี่ยน time", () => {
+    render(<TaskEditForm {...defaultProps} editDeadline="2025-12-31" />);
+    const timeInput = document.querySelector('input[type="time"]');
+    fireEvent.change(timeInput, { target: { value: "09:00" } });
+    expect(defaultProps.setEditDeadlineTime).toHaveBeenCalledWith("09:00");
+  });
+
   // ── Time input disabled state ──────────────────────
   it("time input disabled เมื่อไม่มี deadline", () => {
     render(<TaskEditForm {...defaultProps} editDeadline="" />);
@@ -155,9 +175,6 @@ describe("TaskEditForm", () => {
   });
 
   it("onValueChange ของ recurring Select เรียก setEditRecurring และ reset days", () => {
-    // Radix UI Select ไม่สามารถเปิด dropdown ใน JSDOM ได้
-    // ทดสอบโดยส่ง setEditRecurring/setEditRecurringDays เป็น spy แล้วเรียก
-    // onValueChange ผ่าน SelectTrigger role="combobox" + aria approach
     const setEditRecurring = vi.fn();
     const setEditRecurringDays = vi.fn();
     render(
@@ -169,14 +186,45 @@ describe("TaskEditForm", () => {
         setEditRecurringDays={setEditRecurringDays}
       />
     );
-    // Radix ผูก onValueChange ผ่าน internal event บน trigger button
-    // สามารถ simulate ได้โดยหา SelectTrigger (role=combobox) ตัวที่ 2
-    // แล้ว dispatch keyboard event เพื่อ trigger value change
-    // แต่ถ้ายังไม่ได้ผล — ทดสอบ logic toggleDay ที่พิสูจน์ได้แทน
+    // recurring select is the second select (index 1) - first is priority
+    const selects = screen.getAllByTestId("select");
+    const recurringSelect = selects[1];
+    fireEvent.change(recurringSelect, { target: { value: "daily" } });
+    expect(setEditRecurring).toHaveBeenCalledWith("daily");
+    expect(setEditRecurringDays).toHaveBeenCalledWith([]);
+  });
+
+  it("toggleDay เพิ่มวันเมื่อยังไม่มีใน list", () => {
+    const setEditRecurringDays = vi.fn();
+    render(
+      <TaskEditForm
+        {...defaultProps}
+        editRecurring="weekly"
+        editRecurringDays={[]}
+        setEditRecurringDays={setEditRecurringDays}
+      />
+    );
     const dayBtn = screen.getAllByRole("button").find((b) => b.textContent === "จ");
     fireEvent.click(dayBtn);
     expect(setEditRecurringDays).toHaveBeenCalled();
     const updater = setEditRecurringDays.mock.calls[0][0];
-    expect(updater([1, 2])).toEqual([2]); // toggle day 1 ออก
+    expect(updater([])).toEqual([1]); // add day 1
+  });
+
+  it("toggleDay ลบวันเมื่อมีอยู่ใน list", () => {
+    const setEditRecurringDays = vi.fn();
+    render(
+      <TaskEditForm
+        {...defaultProps}
+        editRecurring="weekly"
+        editRecurringDays={[1, 2]}
+        setEditRecurringDays={setEditRecurringDays}
+      />
+    );
+    const dayBtn = screen.getAllByRole("button").find((b) => b.textContent === "จ");
+    fireEvent.click(dayBtn);
+    expect(setEditRecurringDays).toHaveBeenCalled();
+    const updater = setEditRecurringDays.mock.calls[0][0];
+    expect(updater([1, 2])).toEqual([2]); // remove day 1
   });
 });

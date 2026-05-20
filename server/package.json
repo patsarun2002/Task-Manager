@@ -50,7 +50,9 @@
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [
       "controllers/**/*.js",
-      "middleware/**/*.js"
+      "middleware/**/*.js",
+      "routes/**/*.js",
+      "app.js"
     ]
   }
 }

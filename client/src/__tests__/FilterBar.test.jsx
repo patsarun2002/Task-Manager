@@ -1,6 +1,19 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import FilterBar from "@/components/FilterBar";
+import FilterBar from "@/shared/components/FilterBar";
+
+// Mock Shadcn Select for easier testing
+vi.mock("@/components/ui/select", () => ({
+  Select: ({ value, onValueChange, children }) => (
+    <select value={value} onChange={(e) => onValueChange(e.target.value)} data-testid="select">
+      {children}
+    </select>
+  ),
+  SelectTrigger: () => null,
+  SelectValue: () => null,
+  SelectContent: ({ children }) => <>{children}</>,
+  SelectItem: ({ value, children }) => <option value={value}>{children}</option>,
+}));
 
 const defaultProps = {
   filter: "all",
@@ -65,5 +78,45 @@ describe("FilterBar", () => {
     expect(pendingBtn.className).toMatch(/bg-white|dark:bg-zinc-700/);
     // inactive tab ไม่มี bg-white
     expect(allBtn.className).not.toMatch(/bg-white/);
+  });
+
+  it("เรียก onSortChange เมื่อเปลี่ยน sort select", () => {
+    render(<FilterBar {...defaultProps} />);
+    const selects = screen.getAllByTestId("select");
+    const sortSelect = selects[0]; // First select is sort
+    fireEvent.change(sortSelect, { target: { value: "date" } });
+    expect(defaultProps.onSortChange).toHaveBeenCalledWith("date");
+  });
+
+  it("เรียก onSortChange ด้วยค่าว่างเมื่อเลือก default", () => {
+    render(<FilterBar {...defaultProps} sort="date" />);
+    const selects = screen.getAllByTestId("select");
+    const sortSelect = selects[0];
+    fireEvent.change(sortSelect, { target: { value: "__default" } });
+    expect(defaultProps.onSortChange).toHaveBeenCalledWith("");
+  });
+
+  it("เรียก onPriorityChange เมื่อเปลี่ยน priority select", () => {
+    render(<FilterBar {...defaultProps} />);
+    const selects = screen.getAllByTestId("select");
+    const prioritySelect = selects[1]; // Second select is priority
+    fireEvent.change(prioritySelect, { target: { value: "high" } });
+    expect(defaultProps.onPriorityChange).toHaveBeenCalledWith("high");
+  });
+
+  it("เรียก onCategoryChange เมื่อเปลี่ยน category select", () => {
+    render(<FilterBar {...defaultProps} />);
+    const selects = screen.getAllByTestId("select");
+    const categorySelect = selects[2]; // Third select is category
+    fireEvent.change(categorySelect, { target: { value: "งาน" } });
+    expect(defaultProps.onCategoryChange).toHaveBeenCalledWith("งาน");
+  });
+
+  it("เรียก onCategoryChange ด้วยค่าว่างเมื่อเลือก all", () => {
+    render(<FilterBar {...defaultProps} category="งาน" />);
+    const selects = screen.getAllByTestId("select");
+    const categorySelect = selects[2];
+    fireEvent.change(categorySelect, { target: { value: "__all" } });
+    expect(defaultProps.onCategoryChange).toHaveBeenCalledWith("");
   });
 });

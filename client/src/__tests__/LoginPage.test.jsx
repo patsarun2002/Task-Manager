@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import LoginPage from "@/components/LoginPage";
+import LoginPage from "@/features/auth/components/LoginPage";
 
 // path ต้องตรงกับที่ LoginPage.jsx import จริง: "../services/api"
 vi.mock("@/services/api", () => ({
@@ -88,6 +88,20 @@ describe("LoginPage", () => {
     });
   });
 
+  it("แสดง error default เมื่อ API error ไม่มี response.data.error", async () => {
+    const user = userEvent.setup();
+    login.mockRejectedValue({ response: {} });
+    render(<LoginPage {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText("Email"), "test@email.com");
+    await user.type(screen.getByPlaceholderText("Password"), "password123");
+    await user.click(getSubmitBtn());
+
+    await waitFor(() => {
+      expect(screen.getByText("เกิดข้อผิดพลาด")).toBeInTheDocument();
+    });
+  });
+
   it("สลับ tab ไป register ได้", async () => {
     const user = userEvent.setup();
     render(<LoginPage {...defaultProps} />);
@@ -129,6 +143,20 @@ describe("LoginPage", () => {
 
     await user.type(screen.getByPlaceholderText("Email"), "test@email.com");
     await user.type(screen.getByPlaceholderText("Password"), "password123{Enter}");
+
+    await waitFor(() => {
+      expect(login).toHaveBeenCalled();
+    });
+  });
+
+  it("กด Enter ใน email field ส่ง form ได้", async () => {
+    const user = userEvent.setup();
+    login.mockResolvedValue({ data: {} });
+    render(<LoginPage {...defaultProps} />);
+
+    await user.type(screen.getByPlaceholderText("Email"), "test@email.com");
+    await user.type(screen.getByPlaceholderText("Password"), "password123");
+    await user.type(screen.getByPlaceholderText("Email"), "{Enter}");
 
     await waitFor(() => {
       expect(login).toHaveBeenCalled();

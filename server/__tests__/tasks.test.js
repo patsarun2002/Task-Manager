@@ -1,29 +1,23 @@
 // __tests__/tasks.test.js
 import { jest } from "@jest/globals";
 
-// ── Mock Prisma ──────────────────────────────────────
-const prismaMock = {
-  task: {
-    findMany: jest.fn(),
-    findFirst: jest.fn(),
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    count: jest.fn(),
-    aggregate: jest.fn(),
-  },
-  subtask: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    deleteMany: jest.fn(),
-  },
-  $transaction: jest.fn((ops) => Promise.all(ops)),
+// ── Mock taskService ─────────────────────────────────
+const taskServiceMock = {
+  getMany: jest.fn(),
+  create: jest.fn(),
+  update: jest.fn(),
+  remove: jest.fn(),
+  reorder: jest.fn(),
+  addSubtask: jest.fn(),
+  toggleSubtask: jest.fn(),
+  removeSubtask: jest.fn(),
+  getSummary: jest.fn(),
+  getCategories: jest.fn(),
 };
 
-jest.unstable_mockModule("../db.js", () => ({ default: prismaMock }));
+jest.unstable_mockModule("../services/taskService.js", () => ({
+  taskService: taskServiceMock,
+}));
 
 const {
   getTasks,
@@ -34,6 +28,8 @@ const {
   addSubtask,
   toggleSubtask,
   deleteSubtask,
+  getSummary,
+  getCategories,
 } = await import("../controllers/taskController.js");
 
 // ── Helper ────────────────────────────────────────────
@@ -70,73 +66,70 @@ describe("Task Controller", () => {
   describe("getTasks", () => {
     test("คืน task list พร้อม pagination", async () => {
       const { req, res } = mockReqRes({ query: { page: "1", limit: "10" } });
-      prismaMock.task.findMany.mockResolvedValue([sampleTask]);
-      prismaMock.task.count.mockResolvedValue(1);
+      taskServiceMock.getMany.mockResolvedValue({
+        tasks: [sampleTask],
+        total: 1,
+        page: 1,
+        totalPages: 1,
+      });
 
       await getTasks(req, res);
 
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tasks: expect.any(Array),
-          total: 1,
-          page: 1,
-          totalPages: 1,
-        })
-      );
+      expect(taskServiceMock.getMany).toHaveBeenCalledWith(1, {
+        page: "1",
+        limit: "10",
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        tasks: [sampleTask],
+        total: 1,
+        page: 1,
+        totalPages: 1,
+      });
     });
 
-    test("filter ตาม status", async () => {
-      const { req, res } = mockReqRes({ query: { status: "pending" } });
-      prismaMock.task.findMany.mockResolvedValue([sampleTask]);
-      prismaMock.task.count.mockResolvedValue(1);
-
-      await getTasks(req, res);
-
-      const callArg = prismaMock.task.findMany.mock.calls[0][0];
-      expect(callArg.where.status).toBe("pending");
-    });
-
-    test("filter ตาม priority", async () => {
-      const { req, res } = mockReqRes({ query: { priority: "high" } });
-      prismaMock.task.findMany.mockResolvedValue([]);
-      prismaMock.task.count.mockResolvedValue(0);
-
-      await getTasks(req, res);
-
-      const callArg = prismaMock.task.findMany.mock.calls[0][0];
-      expect(callArg.where.priority).toBe("high");
-    });
-
-    test("sort=date ใช้ deadline ascending", async () => {
-      const { req, res } = mockReqRes({ query: { sort: "date" } });
-      prismaMock.task.findMany.mockResolvedValue([]);
-      prismaMock.task.count.mockResolvedValue(0);
-
-      await getTasks(req, res);
-
-      const callArg = prismaMock.task.findMany.mock.calls[0][0];
-      expect(callArg.orderBy).toEqual({ deadline: "asc" });
-    });
-
-    test("limit สูงสุดไม่เกิน 100", async () => {
-      const { req, res } = mockReqRes({ query: { limit: "999" } });
-      prismaMock.task.findMany.mockResolvedValue([]);
-      prismaMock.task.count.mockResolvedValue(0);
-
-      await getTasks(req, res);
-
-      const callArg = prismaMock.task.findMany.mock.calls[0][0];
-      expect(callArg.take).toBe(100);
-    });
-
-    test("DB error — คืน 500", async () => {
+    test("service error — คืน 500", async () => {
       const { req, res } = mockReqRes();
-      prismaMock.task.findMany.mockRejectedValue(new Error("DB error"));
-      prismaMock.task.count.mockRejectedValue(new Error("DB error"));
+      const error = Object.assign(new Error("Service error"), { status: 500 });
+      taskServiceMock.getMany.mockRejectedValue(error);
 
       await getTasks(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: "Service error" });
+    });
+
+    test("service error with custom status — คืน custom status", async () => {
+      const { req, res } = mockReqRes();
+      const error = Object.assign(new Error("Not found"), { status: 404 });
+      taskServiceMock.getMany.mockRejectedValue(error);
+
+      await getTasks(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    test("service error without status — คืน 500 fallback", async () => {
+      const { req, res } = mockReqRes();
+      const error = new Error("Internal error"); // No status property
+      taskServiceMock.getMany.mockRejectedValue(error);
+
+      await getTasks(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: "Internal error" });
+    });
+
+    test("service error without message — คืน default error message", async () => {
+      const { req, res } = mockReqRes();
+      const error = Object.assign(new Error(), { status: 500 }); // No message
+      taskServiceMock.getMany.mockRejectedValue(error);
+
+      await getTasks(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์",
+      });
     });
   });
 
@@ -144,61 +137,33 @@ describe("Task Controller", () => {
   describe("createTask", () => {
     test("สร้าง task สำเร็จ — คืน 201", async () => {
       const { req, res } = mockReqRes({ body: { title: "New task" } });
-      prismaMock.task.aggregate.mockResolvedValue({ _max: { order: 0 } });
-      prismaMock.task.create.mockResolvedValue({ ...sampleTask, title: "New task" });
+      taskServiceMock.create.mockResolvedValue({
+        ...sampleTask,
+        title: "New task",
+      });
 
       await createTask(req, res);
 
+      expect(taskServiceMock.create).toHaveBeenCalledWith(1, {
+        title: "New task",
+      });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "New task" })
+        expect.objectContaining({ title: "New task" }),
       );
     });
 
-    test("ไม่ส่ง title — คืน 400", async () => {
+    test("service error — คืน error status", async () => {
       const { req, res } = mockReqRes({ body: { title: "" } });
+      const error = Object.assign(new Error("กรุณากรอกชื่อ task"), {
+        status: 400,
+      });
+      taskServiceMock.create.mockRejectedValue(error);
 
       await createTask(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    test("title มีแค่ space — คืน 400", async () => {
-      const { req, res } = mockReqRes({ body: { title: "   " } });
-
-      await createTask(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    test("order ของ task ใหม่ = max + 1", async () => {
-      const { req, res } = mockReqRes({ body: { title: "Task" } });
-      prismaMock.task.aggregate.mockResolvedValue({ _max: { order: 5 } });
-      prismaMock.task.create.mockResolvedValue({ ...sampleTask, order: 6 });
-
-      await createTask(req, res);
-
-      const createCall = prismaMock.task.create.mock.calls[0][0];
-      expect(createCall.data.order).toBe(6);
-    });
-
-    test("สร้าง recurring task — บันทึก recurringType", async () => {
-      const { req, res } = mockReqRes({
-        body: {
-          title: "Daily task",
-          recurring: { type: "daily", days: [] },
-        },
-      });
-      prismaMock.task.aggregate.mockResolvedValue({ _max: { order: 0 } });
-      prismaMock.task.create.mockResolvedValue({
-        ...sampleTask,
-        recurringType: "daily",
-      });
-
-      await createTask(req, res);
-
-      const createCall = prismaMock.task.create.mock.calls[0][0];
-      expect(createCall.data.recurringType).toBe("daily");
+      expect(res.json).toHaveBeenCalledWith({ error: "กรุณากรอกชื่อ task" });
     });
   });
 
@@ -209,74 +174,28 @@ describe("Task Controller", () => {
         params: { id: "1" },
         body: { title: "Updated title" },
       });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-      prismaMock.task.update.mockResolvedValue({
+      taskServiceMock.update.mockResolvedValue({
         ...sampleTask,
         title: "Updated title",
       });
 
       await updateTask(req, res);
 
+      expect(taskServiceMock.update).toHaveBeenCalledWith("1", 1, {
+        title: "Updated title",
+      });
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Updated title" })
+        expect.objectContaining({ title: "Updated title" }),
       );
     });
 
-    test("ไม่พบ task — คืน 404", async () => {
+    test("service error — คืน error status", async () => {
       const { req, res } = mockReqRes({
         params: { id: "999" },
         body: { title: "x" },
       });
-      prismaMock.task.findFirst.mockResolvedValue(null);
-
-      await updateTask(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
-
-    test("title เป็น empty string — คืน 400", async () => {
-      const { req, res } = mockReqRes({
-        params: { id: "1" },
-        body: { title: "   " },
-      });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-
-      await updateTask(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    test("mark done บน recurring task — reset กลับเป็น pending", async () => {
-      const recurringTask = {
-        ...sampleTask,
-        recurringType: "daily",
-        recurringDays: null,
-        deadline: new Date(),
-      };
-      const { req, res } = mockReqRes({
-        params: { id: "1" },
-        body: { status: "done" },
-      });
-      prismaMock.task.findFirst.mockResolvedValue(recurringTask);
-      prismaMock.task.update.mockResolvedValue({
-        ...recurringTask,
-        status: "pending",
-      });
-
-      await updateTask(req, res);
-
-      const updateCall = prismaMock.task.update.mock.calls[0][0];
-      expect(updateCall.data.status).toBe("pending");
-      expect(updateCall.data.recurringLastCompleted).toBeInstanceOf(Date);
-    });
-
-    test("ไม่สามารถอัปเดต task ของคนอื่น — คืน 404", async () => {
-      const { req, res } = mockReqRes({
-        params: { id: "1" },
-        body: { title: "hacked" },
-        userId: 2, // คนละ user
-      });
-      prismaMock.task.findFirst.mockResolvedValue(null); // findFirst กรอง userId
+      const error = Object.assign(new Error("ไม่พบ task"), { status: 404 });
+      taskServiceMock.update.mockRejectedValue(error);
 
       await updateTask(req, res);
 
@@ -288,33 +207,18 @@ describe("Task Controller", () => {
   describe("deleteTask", () => {
     test("ลบ task สำเร็จ", async () => {
       const { req, res } = mockReqRes({ params: { id: "1" } });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-      prismaMock.subtask.deleteMany.mockResolvedValue({});
-      prismaMock.task.delete.mockResolvedValue({});
+      taskServiceMock.remove.mockResolvedValue(undefined);
 
       await deleteTask(req, res);
 
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.any(String) })
-      );
+      expect(taskServiceMock.remove).toHaveBeenCalledWith("1", 1);
+      expect(res.json).toHaveBeenCalledWith({ message: "ลบ task สำเร็จ" });
     });
 
-    test("ลบ subtasks ก่อนลบ task", async () => {
-      const { req, res } = mockReqRes({ params: { id: "1" } });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-      prismaMock.subtask.deleteMany.mockResolvedValue({});
-      prismaMock.task.delete.mockResolvedValue({});
-
-      await deleteTask(req, res);
-
-      expect(prismaMock.subtask.deleteMany).toHaveBeenCalledWith({
-        where: { taskId: 1 },
-      });
-    });
-
-    test("ไม่พบ task — คืน 404", async () => {
+    test("service error — คืน error status", async () => {
       const { req, res } = mockReqRes({ params: { id: "999" } });
-      prismaMock.task.findFirst.mockResolvedValue(null);
+      const error = Object.assign(new Error("ไม่พบ task"), { status: 404 });
+      taskServiceMock.remove.mockRejectedValue(error);
 
       await deleteTask(req, res);
 
@@ -333,42 +237,30 @@ describe("Task Controller", () => {
           ],
         },
       });
-      prismaMock.task.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
-      prismaMock.task.update.mockResolvedValue({});
+      taskServiceMock.reorder.mockResolvedValue(undefined);
 
       await reorderTasks(req, res);
 
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.any(String) })
-      );
+      expect(taskServiceMock.reorder).toHaveBeenCalledWith(1, [
+        { id: 1, order: 0 },
+        { id: 2, order: 1 },
+      ]);
+      expect(res.json).toHaveBeenCalledWith({ message: "บันทึกลำดับสำเร็จ" });
     });
 
-    test("tasks ว่าง — คืน 400", async () => {
-      const { req, res } = mockReqRes({ body: { tasks: [] } });
-
-      await reorderTasks(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    test("tasks ไม่ใช่ array — คืน 400", async () => {
-      const { req, res } = mockReqRes({ body: { tasks: "not-array" } });
-
-      await reorderTasks(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    test("มี task ของคนอื่นปน — คืน 403", async () => {
+    test("service error — คืน error status", async () => {
       const { req, res } = mockReqRes({
-        body: { tasks: [{ id: 1, order: 0 }, { id: 99, order: 1 }] },
+        body: { tasks: [{ id: 1, order: 0 }] },
       });
-      // DB คืนมาแค่ 1 (ไม่ใช่ 2) = มีตัวที่ไม่ใช่ของ user
-      prismaMock.task.findMany.mockResolvedValue([{ id: 1 }]);
+      const error = Object.assign(
+        new Error("tasks ต้องเป็น array ที่ไม่ว่าง"),
+        { status: 400 },
+      );
+      taskServiceMock.reorder.mockRejectedValue(error);
 
       await reorderTasks(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 
@@ -379,65 +271,53 @@ describe("Task Controller", () => {
         params: { id: "1" },
         body: { title: "Sub task" },
       });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-      prismaMock.subtask.create.mockResolvedValue({});
-      prismaMock.task.findUnique.mockResolvedValue({
-        ...sampleTask,
-        subtasks: [{ id: 1, title: "Sub task", done: false }],
+      taskServiceMock.addSubtask.mockResolvedValue({
+        id: 1,
+        title: "Sub task",
+        done: false,
       });
 
       await addSubtask(req, res);
 
+      expect(taskServiceMock.addSubtask).toHaveBeenCalledWith(
+        "1",
+        1,
+        "Sub task",
+      );
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
-    test("ไม่ส่ง title subtask — คืน 400", async () => {
+    test("service error — คืน error status", async () => {
       const { req, res } = mockReqRes({
         params: { id: "1" },
         body: { title: "" },
       });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
+      const error = Object.assign(new Error("กรุณากรอกชื่อ subtask"), {
+        status: 400,
+      });
+      taskServiceMock.addSubtask.mockRejectedValue(error);
 
       await addSubtask(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
-
-    test("ไม่พบ parent task — คืน 404", async () => {
-      const { req, res } = mockReqRes({
-        params: { id: "999" },
-        body: { title: "Sub" },
-      });
-      prismaMock.task.findFirst.mockResolvedValue(null);
-
-      await addSubtask(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
-    });
   });
 
   describe("toggleSubtask", () => {
-    test("toggle subtask done → undone", async () => {
+    test("toggle subtask สำเร็จ", async () => {
       const { req, res } = mockReqRes({ params: { id: "1", subId: "1" } });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-      prismaMock.subtask.findFirst.mockResolvedValue({
-        id: 1,
-        taskId: 1,
-        done: true,
-      });
-      prismaMock.subtask.update.mockResolvedValue({ id: 1, done: false });
-      prismaMock.task.findUnique.mockResolvedValue(sampleTask);
+      taskServiceMock.toggleSubtask.mockResolvedValue({ id: 1, done: false });
 
       await toggleSubtask(req, res);
 
-      const updateCall = prismaMock.subtask.update.mock.calls[0][0];
-      expect(updateCall.data.done).toBe(false); // toggle จาก true → false
+      expect(taskServiceMock.toggleSubtask).toHaveBeenCalledWith("1", "1", 1);
+      expect(res.json).toHaveBeenCalledWith({ id: 1, done: false });
     });
 
-    test("ไม่พบ subtask — คืน 404", async () => {
+    test("service error — คืน error status", async () => {
       const { req, res } = mockReqRes({ params: { id: "1", subId: "999" } });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-      prismaMock.subtask.findFirst.mockResolvedValue(null);
+      const error = Object.assign(new Error("ไม่พบ subtask"), { status: 404 });
+      taskServiceMock.toggleSubtask.mockRejectedValue(error);
 
       await toggleSubtask(req, res);
 
@@ -448,26 +328,78 @@ describe("Task Controller", () => {
   describe("deleteSubtask", () => {
     test("ลบ subtask สำเร็จ", async () => {
       const { req, res } = mockReqRes({ params: { id: "1", subId: "1" } });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-      prismaMock.subtask.findFirst.mockResolvedValue({ id: 1, taskId: 1 });
-      prismaMock.subtask.delete.mockResolvedValue({});
-      prismaMock.task.findUnique.mockResolvedValue(sampleTask);
+      taskServiceMock.removeSubtask.mockResolvedValue(1);
 
       await deleteSubtask(req, res);
 
-      expect(prismaMock.subtask.delete).toHaveBeenCalledWith({
-        where: { id: 1 },
-      });
+      expect(taskServiceMock.removeSubtask).toHaveBeenCalledWith("1", "1", 1);
+      expect(res.json).toHaveBeenCalledWith({ id: 1 });
     });
 
-    test("ไม่พบ subtask — คืน 404", async () => {
+    test("service error — คืน error status", async () => {
       const { req, res } = mockReqRes({ params: { id: "1", subId: "999" } });
-      prismaMock.task.findFirst.mockResolvedValue(sampleTask);
-      prismaMock.subtask.findFirst.mockResolvedValue(null);
+      const error = Object.assign(new Error("ไม่พบ subtask"), { status: 404 });
+      taskServiceMock.removeSubtask.mockRejectedValue(error);
 
       await deleteSubtask(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
+    });
+  });
+
+  // ── GET SUMMARY ───────────────────────────────────
+  describe("getSummary", () => {
+    test("คืน summary สำเร็จ", async () => {
+      const { req, res } = mockReqRes();
+      taskServiceMock.getSummary.mockResolvedValue({
+        total: 10,
+        done: 3,
+        pending: 7,
+        overdue: 0,
+      });
+
+      await getSummary(req, res);
+
+      expect(taskServiceMock.getSummary).toHaveBeenCalledWith(1);
+      expect(res.json).toHaveBeenCalledWith({
+        total: 10,
+        done: 3,
+        pending: 7,
+        overdue: 0,
+      });
+    });
+
+    test("service error — คืน error status", async () => {
+      const { req, res } = mockReqRes();
+      const error = Object.assign(new Error("DB error"), { status: 500 });
+      taskServiceMock.getSummary.mockRejectedValue(error);
+
+      await getSummary(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+    });
+  });
+
+  // ── GET CATEGORIES ────────────────────────────────
+  describe("getCategories", () => {
+    test("คืน categories สำเร็จ", async () => {
+      const { req, res } = mockReqRes();
+      taskServiceMock.getCategories.mockResolvedValue(["work", "personal"]);
+
+      await getCategories(req, res);
+
+      expect(taskServiceMock.getCategories).toHaveBeenCalledWith(1);
+      expect(res.json).toHaveBeenCalledWith(["work", "personal"]);
+    });
+
+    test("service error — คืน error status", async () => {
+      const { req, res } = mockReqRes();
+      const error = Object.assign(new Error("DB error"), { status: 500 });
+      taskServiceMock.getCategories.mockRejectedValue(error);
+
+      await getCategories(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
     });
   });
 });

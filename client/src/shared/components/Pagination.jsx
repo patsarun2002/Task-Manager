@@ -20,7 +20,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
     rangeWithDots.push(...range);
 
     if (page + delta < totalPages - 1) rangeWithDots.push("...", totalPages);
-    else if (totalPages > 1) rangeWithDots.push(totalPages);
+    else rangeWithDots.push(totalPages);
 
     return rangeWithDots;
   };

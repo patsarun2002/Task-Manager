@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import SummaryBar from "@/components/SummaryBar";
+import SummaryBar from "@/shared/components/SummaryBar";
 
 const makeSummary = (overrides = {}) => ({
   total: 10,
