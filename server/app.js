@@ -12,6 +12,12 @@ import { sanitizeBody } from "./middleware/sanitize.js";
 
 const app = express();
 
+// ── Health check ──────────────────────────────────────
+// วางก่อน cors/helmet ทุกตัว — cron job ไม่โดน block
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // ── Middleware ────────────────────────────────────────
 app.use(
   helmet({
@@ -21,7 +27,6 @@ app.use(
 app.use(
   cors({
     origin: (origin, callback) => {
-      // อ่านทุกครั้งที่มี request
       const allowed =
         process.env.ALLOWED_ORIGIN?.split(",").map((o) => o.trim()) ?? [];
       if (!origin || allowed.includes(origin)) {
