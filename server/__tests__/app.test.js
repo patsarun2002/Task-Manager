@@ -24,6 +24,15 @@ import request from "supertest";
 const { default: app } = await import("../app.js");
 
 describe("App", () => {
+  describe("GET /health", () => {
+    test("คืน 200 พร้อม status และ timestamp", async () => {
+      const res = await request(app).get("/health");
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("ok");
+      expect(res.body.timestamp).toBeDefined();
+    });
+  });
+
   describe("GET /", () => {
     test("คืน 200 พร้อม message", async () => {
       const res = await request(app).get("/");

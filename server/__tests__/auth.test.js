@@ -8,6 +8,10 @@ jest.unstable_mockModule("../services/authService.js", () => ({
     login: jest.fn(),
     refresh: jest.fn(),
     logout: jest.fn(),
+    updateProfile: jest.fn(),
+    changePassword: jest.fn(),
+    forgotPassword: jest.fn(),
+    resetPassword: jest.fn(),
   },
 }));
 
@@ -28,13 +32,21 @@ jest.unstable_mockModule("../utils/cookie.js", () => ({
 
 // ── Dynamic imports (ต้องทำหลัง mock) ──────────────
 const { authService } = await import("../services/authService.js");
-const { register, login, refresh, logout } =
-  await import("../controllers/authController.js");
+const {
+  register,
+  login,
+  refresh,
+  logout,
+  updateProfile,
+  changePassword,
+  forgotPassword,
+  resetPassword,
+} = await import("../controllers/authController.js");
 
 // ── Helper: สร้าง mock req/res ───────────────────────
 // [FIX] เพิ่ม cookies param และเพิ่ม cookie/clearCookie ใน res
-function mockReqRes(body = {}, cookies = {}) {
-  const req = { body, cookies };
+function mockReqRes(body = {}, cookies = {}, user = null) {
+  const req = { body, cookies, user };
   const res = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
@@ -444,6 +456,227 @@ describe("Auth Controller", () => {
       authService.logout.mockRejectedValue(error);
 
       await logout(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" }),
+      );
+    });
+  });
+
+  // ── UPDATE PROFILE ─────────────────────────────────
+  describe("updateProfile", () => {
+    test("updateProfile สำเร็จ — คืน 200 พร้อม user", async () => {
+      const { req, res } = mockReqRes(
+        { name: "New Name", email: "new@example.com" },
+        {},
+        { id: 1 },
+      );
+      authService.updateProfile.mockResolvedValue({
+        id: 1,
+        name: "New Name",
+        email: "new@example.com",
+      });
+
+      await updateProfile(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "อัปเดตข้อมูลสำเร็จ" }),
+      );
+      expect(authService.updateProfile).toHaveBeenCalledWith(
+        1,
+        "New Name",
+        "new@example.com",
+      );
+    });
+
+    test("updateProfile เกิด error — คืน 500", async () => {
+      const { req, res } = mockReqRes(
+        { name: "New Name", email: "new@example.com" },
+        {},
+        { id: 1 },
+      );
+      authService.updateProfile.mockRejectedValue(new Error("Database error"));
+
+      await updateProfile(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
+    });
+
+    test("updateProfile เกิด error โดยไม่มี message — คืน 500", async () => {
+      const { req, res } = mockReqRes(
+        { name: "New Name", email: "new@example.com" },
+        {},
+        { id: 1 },
+      );
+      const error = { status: 500 };
+      authService.updateProfile.mockRejectedValue(error);
+
+      await updateProfile(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" }),
+      );
+    });
+  });
+
+  // ── CHANGE PASSWORD ───────────────────────────────
+  describe("changePassword", () => {
+    test("changePassword สำเร็จ — คืน accessToken ใหม่", async () => {
+      const { req, res } = mockReqRes(
+        { currentPassword: "oldpass", newPassword: "newpass123" },
+        {},
+        { id: 1 },
+      );
+      authService.changePassword.mockResolvedValue({
+        accessToken: "new_access_token",
+        refreshToken: "new_refresh_token",
+      });
+
+      await changePassword(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "เปลี่ยนรหัสผ่านสำเร็จ" }),
+      );
+      expect(res.cookie).toHaveBeenCalledWith(
+        "refreshToken",
+        "new_refresh_token",
+        expect.any(Object),
+      );
+      expect(authService.changePassword).toHaveBeenCalledWith(
+        1,
+        "oldpass",
+        "newpass123",
+      );
+    });
+
+    test("changePassword เกิด error — คืน 500", async () => {
+      const { req, res } = mockReqRes(
+        { currentPassword: "oldpass", newPassword: "newpass123" },
+        {},
+        { id: 1 },
+      );
+      authService.changePassword.mockRejectedValue(new Error("Database error"));
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
+    });
+
+    test("changePassword เกิด error โดยไม่มี message — คืน 500", async () => {
+      const { req, res } = mockReqRes(
+        { currentPassword: "oldpass", newPassword: "newpass123" },
+        {},
+        { id: 1 },
+      );
+      const error = { status: 500 };
+      authService.changePassword.mockRejectedValue(error);
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" }),
+      );
+    });
+  });
+
+  // ── FORGOT PASSWORD ───────────────────────────────
+  describe("forgotPassword", () => {
+    test("forgotPassword สำเร็จ — คืน message", async () => {
+      const { req, res } = mockReqRes({ email: "test@example.com" });
+      authService.forgotPassword.mockResolvedValue();
+
+      await forgotPassword(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message:
+            "หากอีเมลนี้มีอยู่ในระบบ คุณจะได้รับลิงก์รีเซ็ตรหัสผ่านทางอีเมล",
+        }),
+      );
+      expect(authService.forgotPassword).toHaveBeenCalledWith(
+        "test@example.com",
+      );
+    });
+
+    test("forgotPassword เกิด error — คืน 500", async () => {
+      const { req, res } = mockReqRes({ email: "test@example.com" });
+      authService.forgotPassword.mockRejectedValue(new Error("Database error"));
+
+      await forgotPassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
+    });
+
+    test("forgotPassword เกิด error โดยไม่มี message — คืน 500", async () => {
+      const { req, res } = mockReqRes({ email: "test@example.com" });
+      const error = { status: 500 };
+      authService.forgotPassword.mockRejectedValue(error);
+
+      await forgotPassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: "เกิดข้อผิดพลาดบนเซิร์ฟเวอร์" }),
+      );
+    });
+  });
+
+  // ── RESET PASSWORD ─────────────────────────────────
+  describe("resetPassword", () => {
+    test("resetPassword สำเร็จ — คืน message", async () => {
+      const { req, res } = mockReqRes({
+        token: "reset_token",
+        newPassword: "newpass123",
+      });
+      authService.resetPassword.mockResolvedValue();
+
+      await resetPassword(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "รีเซ็ตรหัสผ่านสำเร็จ" }),
+      );
+      expect(authService.resetPassword).toHaveBeenCalledWith(
+        "reset_token",
+        "newpass123",
+      );
+    });
+
+    test("resetPassword เกิด error — คืน 500", async () => {
+      const { req, res } = mockReqRes({
+        token: "reset_token",
+        newPassword: "newpass123",
+      });
+      authService.resetPassword.mockRejectedValue(new Error("Database error"));
+
+      await resetPassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(String) }),
+      );
+    });
+
+    test("resetPassword เกิด error โดยไม่มี message — คืน 500", async () => {
+      const { req, res } = mockReqRes({
+        token: "reset_token",
+        newPassword: "newpass123",
+      });
+      const error = { status: 500 };
+      authService.resetPassword.mockRejectedValue(error);
+
+      await resetPassword(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith(

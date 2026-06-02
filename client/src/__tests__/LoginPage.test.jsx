@@ -38,7 +38,7 @@ describe("LoginPage", () => {
     render(<LoginPage {...defaultProps} />);
 
     expect(screen.getByPlaceholderText("Email")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Password")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("รหัสผ่าน")).toBeInTheDocument();
     // ใช้ data-slot แทน getByText เพราะ "เข้าสู่ระบบ" มี 2 element (tab + submit)
     expect(getSubmitBtn()).toBeInTheDocument();
   });
@@ -60,7 +60,7 @@ describe("LoginPage", () => {
     render(<LoginPage {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("Email"), "test@email.com");
-    await user.type(screen.getByPlaceholderText("Password"), "password123");
+    await user.type(screen.getByPlaceholderText("รหัสผ่าน"), "password123");
     await user.click(getSubmitBtn());
 
     await waitFor(() => {
@@ -80,7 +80,7 @@ describe("LoginPage", () => {
     render(<LoginPage {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("Email"), "wrong@email.com");
-    await user.type(screen.getByPlaceholderText("Password"), "wrongpass");
+    await user.type(screen.getByPlaceholderText("รหัสผ่าน"), "wrongpass");
     await user.click(getSubmitBtn());
 
     await waitFor(() => {
@@ -94,7 +94,7 @@ describe("LoginPage", () => {
     render(<LoginPage {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("Email"), "test@email.com");
-    await user.type(screen.getByPlaceholderText("Password"), "password123");
+    await user.type(screen.getByPlaceholderText("รหัสผ่าน"), "password123");
     await user.click(getSubmitBtn());
 
     await waitFor(() => {
@@ -119,7 +119,7 @@ describe("LoginPage", () => {
 
     await user.click(getTabBtn("สมัครสมาชิก"));
     await user.type(screen.getByPlaceholderText("Email"), "new@email.com");
-    await user.type(screen.getByPlaceholderText("Password"), "newpassword");
+    await user.type(screen.getByPlaceholderText("รหัสผ่าน"), "newpassword");
     await user.click(getSubmitBtn());
 
     await waitFor(() => {
@@ -142,7 +142,7 @@ describe("LoginPage", () => {
     render(<LoginPage {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("Email"), "test@email.com");
-    await user.type(screen.getByPlaceholderText("Password"), "password123{Enter}");
+    await user.type(screen.getByPlaceholderText("รหัสผ่าน"), "password123{Enter}");
 
     await waitFor(() => {
       expect(login).toHaveBeenCalled();
@@ -155,7 +155,7 @@ describe("LoginPage", () => {
     render(<LoginPage {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("Email"), "test@email.com");
-    await user.type(screen.getByPlaceholderText("Password"), "password123");
+    await user.type(screen.getByPlaceholderText("รหัสผ่าน"), "password123");
     await user.type(screen.getByPlaceholderText("Email"), "{Enter}");
 
     await waitFor(() => {

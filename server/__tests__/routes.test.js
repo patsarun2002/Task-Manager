@@ -13,6 +13,18 @@ jest.unstable_mockModule("../controllers/authController.js", () => ({
   logout: jest.fn((req, res) =>
     res.status(200).json({ message: "logged out" }),
   ),
+  updateProfile: jest.fn((req, res) =>
+    res.status(200).json({ message: "profile updated" }),
+  ),
+  changePassword: jest.fn((req, res) =>
+    res.status(200).json({ message: "password changed" }),
+  ),
+  forgotPassword: jest.fn((req, res) =>
+    res.status(200).json({ message: "forgot password" }),
+  ),
+  resetPassword: jest.fn((req, res) =>
+    res.status(200).json({ message: "password reset" }),
+  ),
 }));
 
 jest.unstable_mockModule("../controllers/taskController.js", () => ({
@@ -42,6 +54,10 @@ jest.unstable_mockModule("../middleware/auth.js", () => ({
   }),
 }));
 
+jest.unstable_mockModule("../middleware/rateLimiter.js", () => ({
+  forgotPasswordLimiter: jest.fn((req, res, next) => next()),
+}));
+
 // ── Imports (after mocks) ─────────────────────────────
 import express from "express";
 import request from "supertest";
@@ -49,8 +65,16 @@ import request from "supertest";
 const { default: authRouter } = await import("../routes/auth.js");
 const { default: taskRouter } = await import("../routes/tasks.js");
 
-const { register, login, refresh, logout } =
-  await import("../controllers/authController.js");
+const {
+  register,
+  login,
+  refresh,
+  logout,
+  updateProfile,
+  changePassword,
+  forgotPassword,
+  resetPassword,
+} = await import("../controllers/authController.js");
 const {
   getTasks,
   createTask,
@@ -126,6 +150,50 @@ describe("Routes", () => {
 
         expect(res.status).toBe(200);
         expect(logout).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("PATCH /auth/profile", () => {
+      test("เรียก updateProfile controller และคืน 200", async () => {
+        const res = await request(app)
+          .patch("/auth/profile")
+          .send({ name: "New Name", email: "new@example.com" });
+
+        expect(res.status).toBe(200);
+        expect(updateProfile).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("PATCH /auth/password", () => {
+      test("เรียก changePassword controller และคืน 200", async () => {
+        const res = await request(app)
+          .patch("/auth/password")
+          .send({ currentPassword: "oldpass", newPassword: "newpass123" });
+
+        expect(res.status).toBe(200);
+        expect(changePassword).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("POST /auth/forgot-password", () => {
+      test("เรียก forgotPassword controller และคืน 200", async () => {
+        const res = await request(app)
+          .post("/auth/forgot-password")
+          .send({ email: "test@example.com" });
+
+        expect(res.status).toBe(200);
+        expect(forgotPassword).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("POST /auth/reset-password", () => {
+      test("เรียก resetPassword controller และคืน 200", async () => {
+        const res = await request(app)
+          .post("/auth/reset-password")
+          .send({ token: "reset_token", newPassword: "newpass123" });
+
+        expect(res.status).toBe(200);
+        expect(resetPassword).toHaveBeenCalledTimes(1);
       });
     });
 
