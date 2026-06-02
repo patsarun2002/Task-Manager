@@ -13,7 +13,7 @@ export const authLimiter = rateLimit({
 // สำหรับ forgot-password endpoint (3 requests per hour)
 export const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 5,
+  max: 3,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "ลองใหม่บ่อยเกินไป กรุณารอสักครู่แล้วลองอีกครั้ง" },
