@@ -3,7 +3,7 @@ import { login, register } from "../../../services/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onForgotPassword }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,8 +16,8 @@ export default function LoginPage({ onLogin }) {
     setError("");
     try {
       if (mode === "login") {
-        await login({ email, password });
-        onLogin(email);
+        const res = await login({ email, password });
+        onLogin(email, res.data.user?.name);
       } else {
         await register({ email, password });
         setMode("login");
@@ -33,7 +33,7 @@ export default function LoginPage({ onLogin }) {
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-6">
       {/* Tabs */}
-      <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-700 rounded-xl p-1 mb-5">
+      <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-700 rounded-xl p-1 mb-6">
         {[
           { value: "login", label: "เข้าสู่ระบบ" },
           { value: "register", label: "สมัครสมาชิก" },
@@ -57,7 +57,7 @@ export default function LoginPage({ onLogin }) {
 
       {error && (
         <div
-          className={`text-sm px-3 py-2 rounded-lg mb-4 ${
+          className={`text-sm px-3 py-2 rounded-lg mb-6 ${
             error.includes("สำเร็จ")
               ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-900"
               : "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900"
@@ -67,21 +67,35 @@ export default function LoginPage({ onLogin }) {
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        <Input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-        />
-        <Input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-        />
+      <div className="flex flex-col gap-4">
+        <div>
+          <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5 block">Email</label>
+          <Input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5 block">รหัสผ่าน</label>
+          <Input
+            type="password"
+            placeholder="รหัสผ่าน"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          />
+        </div>
+        {mode === "login" && (
+          <button
+            onClick={onForgotPassword}
+            className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-right"
+          >
+            ลืมรหัสผ่าน?
+          </button>
+        )}
         <Button onClick={handleSubmit} disabled={loading} className="w-full">
           {loading ? "กำลังโหลด..." : mode === "login" ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
         </Button>

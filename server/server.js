@@ -13,15 +13,26 @@ if (missing.length) {
 
 const PORT = process.env.PORT || 3001;
 
-// ── Cron: ล้าง expired refresh tokens ทุกวัน 02:00 น. ──
+// ── Cron: ล้าง expired refresh tokens และ password reset tokens ทุกวัน 02:00 น. ──
 cron.schedule("0 2 * * *", async () => {
   try {
-    const { count } = await prisma.refreshToken.deleteMany({
+    const { count: refreshCount } = await prisma.refreshToken.deleteMany({
       where: { expiresAt: { lt: new Date() } },
     });
-    console.log(`[cron] cleaned up ${count} expired refresh tokens`);
+    console.log(`[cron] cleaned up ${refreshCount} expired refresh tokens`);
   } catch (err) {
-    console.error("[cron] cleanup failed:", err);
+    console.error("[cron] refresh token cleanup failed:", err);
+  }
+
+  try {
+    const { count: resetCount } = await prisma.passwordResetToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    console.log(
+      `[cron] cleaned up ${resetCount} expired password reset tokens`,
+    );
+  } catch (err) {
+    console.error("[cron] password reset token cleanup failed:", err);
   }
 });
 

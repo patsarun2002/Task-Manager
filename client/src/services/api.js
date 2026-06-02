@@ -1,4 +1,5 @@
 import axios from "axios";
+import { useAuthStore } from "../store/authStore";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -31,6 +32,11 @@ api.interceptors.response.use(
         );
         localStorage.setItem("accessToken", data.accessToken);
         original.headers.Authorization = `Bearer ${data.accessToken}`;
+        // Update authStore with user data from refresh
+        if (data.user) {
+          const { updateProfile } = useAuthStore.getState();
+          updateProfile(data.user.name, data.user.email);
+        }
         return api(original);
       } catch {
         localStorage.removeItem("accessToken");
@@ -54,6 +60,10 @@ export const logout = async () => {
   await api.post("/auth/logout").catch(() => {});
   localStorage.removeItem("accessToken");
 };
+export const forgotPassword = (data) => api.post("/auth/forgot-password", data);
+export const resetPassword = (data) => api.post("/auth/reset-password", data);
+export const updateProfile = (data) => api.patch("/auth/profile", data);
+export const changePassword = (data) => api.patch("/auth/password", data);
 
 // ── Tasks ─────────────────────────────────────────────
 export const getTasks = (params) => api.get("/tasks", { params });

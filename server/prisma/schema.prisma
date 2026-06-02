@@ -28,12 +28,15 @@ enum RecurringType {
 }
 
 model User {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique
-  password      String
-  createdAt     DateTime       @default(now())
-  tasks         Task[]
-  refreshTokens RefreshToken[]
+  id                  Int                  @id @default(autoincrement())
+  email               String               @unique
+  password            String
+  name                String?
+  passwordChangedAt   DateTime?
+  createdAt           DateTime             @default(now())
+  tasks               Task[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Task {
@@ -75,6 +78,19 @@ model RefreshToken {
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  used      Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([userId])

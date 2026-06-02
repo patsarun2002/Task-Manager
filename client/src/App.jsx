@@ -8,6 +8,9 @@ import { TaskForm, TaskList, TaskSkeleton } from "./features/tasks";
 import FilterBar from "./shared/components/FilterBar";
 import SummaryBar from "./shared/components/SummaryBar";
 import LoginPage from "./features/auth/components/LoginPage";
+import ForgotPasswordPage from "./features/auth/components/ForgotPasswordPage";
+import ResetPasswordPage from "./features/auth/components/ResetPasswordPage";
+import ProfilePage from "./features/auth/components/ProfilePage";
 import Pagination from "./shared/components/Pagination";
 import { Button } from "@/components/ui/button";
 import "./index.css";
@@ -29,7 +32,15 @@ function TaskApp({ onLogout, onLogin }) {
   const [category, setCategory] = useState("");
   const [page, setPage] = useState(1);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [hasClosedResetPassword, setHasClosedResetPassword] = useState(false);
+
+  // Check URL for reset token on mount
+  const resetToken = new URLSearchParams(window.location.search).get("token") || "";
+  const shouldShowResetPassword = !!resetToken && !hasClosedResetPassword;
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -178,6 +189,15 @@ function TaskApp({ onLogout, onLogin }) {
                     <div className="absolute right-0 top-10 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg py-1 w-fit z-50">
                       <button
                         onClick={() => {
+                          setShowMenu(false);
+                          setShowProfile(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors whitespace-nowrap"
+                      >
+                        ข้อมูลส่วนตัว
+                      </button>
+                      <button
+                        onClick={() => {
                           handleLogout();
                           setShowMenu(false);
                         }}
@@ -282,11 +302,94 @@ function TaskApp({ onLogout, onLogin }) {
               ✕
             </button>
             <LoginPage
-              onLogin={(email) => {
-                onLogin(email);
+              onLogin={(email, name) => {
+                onLogin(email, name);
                 setShowLoginModal(false);
               }}
+              onForgotPassword={() => {
+                setShowLoginModal(false);
+                setShowForgotPassword(true);
+              }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && !isLoggedIn && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={(e) => e.target === e.currentTarget && setShowForgotPassword(false)}
+        >
+          <div className="relative w-full max-w-sm">
+            <button
+              onClick={() => setShowForgotPassword(false)}
+              className="absolute -top-9 right-0 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-200 transition text-sm"
+            >
+              ✕
+            </button>
+            <ForgotPasswordPage
+              onBack={() => {
+                setShowForgotPassword(false);
+                setShowLoginModal(true);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {(showResetPassword || shouldShowResetPassword) && !isLoggedIn && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowResetPassword(false);
+              setHasClosedResetPassword(true);
+            }
+          }}
+        >
+          <div className="relative w-full max-w-sm">
+            <button
+              onClick={() => {
+                setShowResetPassword(false);
+                setHasClosedResetPassword(true);
+              }}
+              className="absolute -top-9 right-0 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-200 transition text-sm"
+            >
+              ✕
+            </button>
+            <ResetPasswordPage
+              token={resetToken}
+              onBack={() => {
+                setShowResetPassword(false);
+                setHasClosedResetPassword(true);
+                setShowForgotPassword(true);
+              }}
+              onSuccess={() => {
+                setShowResetPassword(false);
+                setHasClosedResetPassword(true);
+                setShowLoginModal(true);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Profile Modal */}
+      {showProfile && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={(e) => e.target === e.currentTarget && setShowProfile(false)}
+        >
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowProfile(false)}
+              className="absolute -top-9 right-0 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-zinc-200 transition text-sm"
+            >
+              ✕
+            </button>
+            <ProfilePage onBack={() => setShowProfile(false)} />
           </div>
         </div>
       )}

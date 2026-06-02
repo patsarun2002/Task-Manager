@@ -25,15 +25,29 @@ export const useAuthStore = create((set) => {
   return {
     isLoggedIn: !!readStorage("accessToken"),
     email: readStorage("userEmail"),
+    name: readStorage("userName"),
     isDark: savedDark,
 
-    login: (email) => {
-      if (isBrowser) localStorage.setItem("userEmail", email);
-      set({ isLoggedIn: true, email });
+    login: (email, name) => {
+      if (isBrowser) {
+        localStorage.setItem("userEmail", email);
+        if (name) localStorage.setItem("userName", name);
+      }
+      set({ isLoggedIn: true, email, name: name || "" });
     },
     logout: () => {
-      if (isBrowser) localStorage.removeItem("userEmail");
-      set({ isLoggedIn: false, email: "" });
+      if (isBrowser) {
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("userName");
+      }
+      set({ isLoggedIn: false, email: "", name: "" });
+    },
+    updateProfile: (name, email) => {
+      if (isBrowser) {
+        if (email) localStorage.setItem("userEmail", email);
+        if (name) localStorage.setItem("userName", name);
+      }
+      set({ name, email });
     },
 
     toggleTheme: () =>
