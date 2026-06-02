@@ -369,6 +369,7 @@ function TaskApp({ onLogout, onLogin }) {
               onSuccess={() => {
                 setShowResetPassword(false);
                 setHasClosedResetPassword(true);
+                window.history.replaceState({}, "", "/");
                 setShowLoginModal(true);
               }}
             />
