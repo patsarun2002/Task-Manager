@@ -1,13 +1,33 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
 import prisma from "../db.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt.js";
 import { hashToken } from "../utils/hash.js";
 
 const SALT_ROUNDS = Number(process.env.BCRYPT_SALT_ROUNDS) || 10;
 const REFRESH_TTL = 7 * 24 * 60 * 60 * 1000;
+
+const sendEmail = async ({ to, subject, html }) => {
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": process.env.BREVO_API_KEY,
+    },
+    body: JSON.stringify({
+      to: [{ email: to }],
+      sender: { email: process.env.FROM_EMAIL },
+      subject: subject,
+      htmlContent: html,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Brevo API error: ${error}`);
+  }
+};
 
 export const authService = {
   async register(email, password) {
@@ -233,19 +253,7 @@ export const authService = {
     const resetLink = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
 
     try {
-      const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        family: 4,
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASS,
-        },
-      });
-
-      await transporter.sendMail({
-        from: process.env.GMAIL_USER,
+      await sendEmail({
         to: email,
         subject: "รีเซ็ตรหัสผ่านของคุณ",
         html: `
