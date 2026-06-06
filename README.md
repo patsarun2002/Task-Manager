@@ -11,8 +11,8 @@ A full-stack Task Management application with JWT authentication, subtask suppor
 | Layer      | Technology                                                                                       |
 | ---------- | ------------------------------------------------------------------------------------------------ |
 | Framework  | React 19 (Frontend), Express 5 (Backend)                                                         |
-| Frontend   | Vite 8, Tailwind CSS 4, shadcn/ui, @dnd-kit, @tanstack/react-query                               |
-| Backend    | Node.js, Express 5, Morgan, Cookie-parser                                                        |
+| Frontend   | Vite 8, Tailwind CSS 4, shadcn/ui, @dnd-kit, @tanstack/react-query, Zustand, Axios               |
+| Backend    | Node.js, Express 5, Morgan, Cookie-parser, Pino, node-cron                                        |
 | Runtime    | Node.js 18+                                                                                      |
 | Database   | PostgreSQL, Prisma ORM 7                                                                         |
 | Auth       | JWT (access + refresh tokens), bcrypt, HttpOnly cookies                                          |
@@ -27,6 +27,10 @@ A full-stack Task Management application with JWT authentication, subtask suppor
 ## ✨ Features Overview
 
 - JWT-based authentication with access token (15min) and refresh token (7 days) stored in HttpOnly cookies
+- User profile management — update name and email
+- Password change functionality with token refresh
+- Forgot password with email reset link (Brevo)
+- Password reset via token validation
 - Full CRUD for tasks with title, status, priority, category, note, deadline, and deadline time
 - Subtask support — create, toggle completion, and delete nested tasks
 - Drag-and-drop task reordering persisted to database via `order` field
@@ -56,7 +60,10 @@ client/src/
 ├── features/
 │   ├── auth/
 │   │   ├── components/
-│   │   │   └── LoginPage.jsx       # Login/Register modal with form validation
+│   │   │   ├── LoginPage.jsx       # Login/Register modal with form validation
+│   │   │   ├── ForgotPasswordPage.jsx  # Forgot password form with email input
+│   │   │   ├── ResetPasswordPage.jsx   # Password reset form with token
+│   │   │   └── ProfilePage.jsx    # Profile management (name, email, password change)
 │   │   └── index.js                # Auth feature exports
 │   └── tasks/
 │       ├── components/
@@ -89,7 +96,7 @@ client/src/
 
 server/
 ├── controllers/
-│   ├── authController.js          # Register, login, refresh, logout handlers
+│   ├── authController.js          # Register, login, refresh, logout, profile, password reset handlers
 │   └── taskController.js          # Task CRUD, subtask operations, summary, categories
 ├── middleware/
 │   ├── auth.js                    # JWT verification from Authorization header
@@ -97,17 +104,17 @@ server/
 │   ├── sanitize.js                # XSS sanitization for request body
 │   └── validate.js                # Task field validation (status, priority, date/time, recurring)
 ├── routes/
-│   ├── auth.js                    # Auth endpoints (register, login, refresh, logout)
+│   ├── auth.js                    # Auth endpoints (register, login, refresh, logout, profile, password reset)
 │   └── tasks.js                   # Task endpoints with auth middleware
 ├── services/
-│   ├── authService.js             # Auth business logic (register, login, refresh, logout)
+│   ├── authService.js             # Auth business logic (register, login, refresh, logout, profile, password reset)
 │   └── taskService.js             # Task business logic (CRUD, subtasks, summary, categories)
 ├── utils/
 │   ├── jwt.js                     # JWT token generation (access + refresh)
 │   ├── hash.js                    # SHA-256 token hashing for refresh token storage
 │   └── cookie.js                  # HttpOnly cookie configuration
 ├── prisma/
-│   ├── schema.prisma              # Database schema (User, Task, Subtask, RefreshToken)
+│   ├── schema.prisma              # Database schema (User, Task, Subtask, RefreshToken, PasswordResetToken)
 │   └── migrations/                # Prisma migration files
 ├── __tests__/                     # Jest integration tests
 ├── __mocks__/                     # Test mocks (Prisma client)
@@ -121,12 +128,13 @@ server/
 
 ## 🗃️ Database Schema
 
-| Model            | Description                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User**         | User account with email and password. Stores relationship to tasks and refresh tokens. Key fields: `id`, `email` (unique), `password` (bcrypt hashed), `createdAt`                                                                                                                                                                                                                                                                                       |
-| **Task**         | Main task entity with status, priority, category, note, deadline, and recurring settings. Key fields: `id`, `title`, `status` (pending/done), `priority` (low/medium/high), `category`, `note`, `deadline`, `deadlineTime`, `recurringType` (daily/weekly), `recurringDays` (array of day indices 0-6), `recurringLastCompleted`, `order` (for drag-and-drop), `userId` (FK), `createdAt`. Indexed on `userId+status`, `userId+deadline`, `userId+order` |
-| **Subtask**      | Nested task within a parent task. Key fields: `id`, `title`, `done` (boolean), `taskId` (FK). Indexed on `taskId`                                                                                                                                                                                                                                                                                                                                        |
-| **RefreshToken** | Stores hashed refresh tokens for JWT rotation. Key fields: `id`, `tokenHash` (SHA-256, unique), `userId` (FK), `expiresAt`, `createdAt`. Indexed on `userId` and `expiresAt`                                                                                                                                                                                                                                                                             |
+| Model                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User**             | User account with email, password, and optional name. Stores relationship to tasks, refresh tokens, and password reset tokens. Key fields: `id`, `email` (unique), `password` (bcrypt hashed), `name`, `passwordChangedAt`, `createdAt`                                                                                                                                                                                                                   |
+| **Task**             | Main task entity with status, priority, category, note, deadline, and recurring settings. Key fields: `id`, `title`, `status` (pending/done), `priority` (low/medium/high), `category`, `note`, `deadline`, `deadlineTime`, `recurringType` (daily/weekly), `recurringDays` (array of day indices 0-6), `recurringLastCompleted`, `order` (for drag-and-drop), `userId` (FK), `createdAt`. Indexed on `userId+status`, `userId+deadline`, `userId+order` |
+| **Subtask**          | Nested task within a parent task. Key fields: `id`, `title`, `done` (boolean), `taskId` (FK). Indexed on `taskId`                                                                                                                                                                                                                                                                                                                                        |
+| **RefreshToken**     | Stores hashed refresh tokens for JWT rotation. Key fields: `id`, `tokenHash` (SHA-256, unique), `userId` (FK), `expiresAt`, `createdAt`. Indexed on `userId` and `expiresAt`                                                                                                                                                                                                                                                                             |
+| **PasswordResetToken** | Stores hashed password reset tokens for email-based password recovery. Key fields: `id`, `tokenHash` (SHA-256, unique), `userId` (FK), `expiresAt`, `used` (boolean), `createdAt`. Indexed on `userId` and `expiresAt`                                                                                                                                                                                                                                  |
 
 ---
 
@@ -149,6 +157,10 @@ User → Logout → Delete refresh token from DB → Clear cookie → Clear loca
 - Login with email and password
 - Automatically refresh access token when expired
 - Logout to invalidate refresh token
+- Update profile (name and email)
+- Change password with current password verification
+- Request password reset via email
+- Reset password using token from email link
 
 **Token Lifecycle:**
 | Token Type | Expiration | Storage | Usage |
@@ -218,7 +230,7 @@ User → Add subtask → Create subtask → Update cache in-place → Update UI
 
 ---
 
-## � Security
+## 🔐 Security
 
 - JWT access tokens with 15-minute expiration
 - JWT refresh tokens with 7-day expiration, stored as SHA-256 hashes in database
@@ -228,7 +240,7 @@ User → Add subtask → Create subtask → Update cache in-place → Update UI
 - Rate limiting: 10 requests per 15 minutes for auth routes, 100 requests per 15 minutes for API routes
 - CORS with configurable allowed origins
 - Helmet middleware for security headers
-- Input validation for task fields (title length, status enum, priority enum, date/time format, recurring rules)
+- Custom validation middleware for task fields (title length, status enum, priority enum, date/time format, recurring rules)
 - Email validation with regex pattern
 - Password minimum length validation (8 characters)
 - Automatic cleanup of expired refresh tokens via cron job (daily at 02:00)
@@ -236,6 +248,8 @@ User → Add subtask → Create subtask → Update cache in-place → Update UI
 - Token revocation on logout (delete from database)
 - Authorization middleware verifies JWT on all protected routes
 - User-scoped queries (userId filtering on all task operations)
+- Password reset tokens with expiration and single-use flag
+- Password change tracking with `passwordChangedAt` timestamp
 
 ---
 
@@ -268,17 +282,20 @@ npm install
 Create a `.env` file in `server/`:
 
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/task_manager
-JWT_SECRET=your_jwt_secret_key
-JWT_REFRESH_SECRET=your_jwt_refresh_secret_key
-JWT_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
+DATABASE_URL="postgresql://user:password@localhost:5432/taskmanager"
+JWT_SECRET="your-jwt-secret-key"
+JWT_REFRESH_SECRET="your-jwt-refresh-secret-key"
+JWT_EXPIRES_IN="15m"
+JWT_REFRESH_EXPIRES_IN="7d"
+BCRYPT_SALT_ROUNDS=10
 PORT=3001
 NODE_ENV=development
-BCRYPT_SALT_ROUNDS=10
+ALLOWED_ORIGIN="http://localhost:5173"
 AUTH_RATE_LIMIT_MAX=10
 API_RATE_LIMIT_MAX=100
-ALLOWED_ORIGIN=http://localhost:5173
+BREVO_API_KEY=your-brevo-api-key
+FROM_EMAIL=your@gmail.com
+CLIENT_URL=http://localhost:5173
 ```
 
 Create a `.env` file in `client/`:
@@ -286,6 +303,8 @@ Create a `.env` file in `client/`:
 ```env
 VITE_API_URL=http://localhost:3001/api
 ```
+
+> **Note:** The client uses `import.meta.env.VITE_API_URL` to configure the API base URL.
 
 ### Database Setup
 
